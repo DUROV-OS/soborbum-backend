@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.ai import mcp_auth
 from app.ai.router import app as ai_app
+from app.board.router import app as board_app
+from app.board.seed import ensure_seed
 from app.clients.router import app as clients_app
 from app.common.files import router as files_router
 from app.core.config import settings
@@ -45,6 +47,9 @@ def on_startup() -> None:
     db = SessionLocal()
     try:
         bootstrap_admin(db)
+        # Idempotent: only actually creates anything the first time it runs
+        # after a deploy, no-op on every restart after that (see the module).
+        ensure_seed(db)
     finally:
         db.close()
 
@@ -76,3 +81,4 @@ app.mount("/api/marketing", marketing_app)
 app.mount("/api/tasks", tasks_app)
 app.mount("/api/ai", ai_app)
 app.mount("/api/dashboard", dashboard_app)
+app.mount("/api/board", board_app)

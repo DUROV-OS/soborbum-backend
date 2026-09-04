@@ -9,7 +9,8 @@ from app.tasks.schemas import TaskOut
 
 class AskRequest(BaseModel):
     chat_id: int | None = None
-    message: str
+    message: str = ""
+    file_ids: list[int] = Field(default_factory=list)  # ids from POST /ai/files, must belong to the caller
     mode: ChatMode = ChatMode.REQUIRE_APPROVAL  # only used when chat_id is absent (new chat)
 
 

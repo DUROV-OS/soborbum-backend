@@ -11,10 +11,12 @@ import anthropic
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.ai import attachments as ai_attachments
 from app.ai import mcp_auth
 from app.ai.models import Chat, ChatMode, Message, PendingAction, PendingActionStatus
 from app.ai.prompts import SYSTEM_PROMPTS
 from app.ai.tools import DOMAIN_TOOLS, TOOLS
+from app.common.files import FileAsset
 from app.core.config import settings
 from app.users.models import User
 
@@ -61,8 +63,22 @@ def _available_tools(chat: Chat, user: User) -> list[dict]:
     return tools
 
 
-def _build_history(chat: Chat) -> list[dict]:
-    return [{"role": m.role, "content": m.content} for m in chat.messages]
+def _resolve_content(db: Session, content: list) -> list:
+    resolved = []
+    for block in content:
+        if block.get("type") == "file_ref":
+            asset = db.get(FileAsset, block["file_id"])
+            if asset is None:
+                resolved.append({"type": "text", "text": f"[Файл «{block.get('filename')}» больше недоступен]"})
+            else:
+                resolved.append(ai_attachments.build_content_block(asset))
+        else:
+            resolved.append(block)
+    return resolved
+
+
+def _build_history(db: Session, chat: Chat) -> list[dict]:
+    return [{"role": m.role, "content": _resolve_content(db, m.content)} for m in chat.messages]
 
 
 def _call_claude(db: Session, system: str, messages: list[dict], tools: list[dict], mode: ChatMode):
@@ -122,8 +138,14 @@ def _execute_tool(db: Session, name: str, tool_input: dict, user: User) -> dict:
         return {"content": {"error": e.detail}, "is_error": True}
 
 
-def run_turn(db: Session, chat: Chat, user: User, user_text: str) -> TurnResult:
-    db.add(Message(chat_id=chat.id, role="user", content=[{"type": "text", "text": user_text}]))
+def run_turn(db: Session, chat: Chat, user: User, user_text: str, file_ids: list[int] | None = None) -> TurnResult:
+    content = ai_attachments.resolve_file_ids(db, file_ids or [], user)
+    if user_text:
+        content.append({"type": "text", "text": user_text})
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нужно отправить текст или файл")
+
+    db.add(Message(chat_id=chat.id, role="user", content=content))
     db.commit()
     db.refresh(chat)
     return _advance(db, chat, user)
@@ -132,7 +154,7 @@ def run_turn(db: Session, chat: Chat, user: User, user_text: str) -> TurnResult:
 def _advance(db: Session, chat: Chat, user: User) -> TurnResult:
     for _ in range(MAX_ITERATIONS):
         system = SYSTEM_PROMPTS[chat.domain]
-        history = _build_history(chat)
+        history = _build_history(db, chat)
         tools = _available_tools(chat, user)
         response = _call_claude(db, system, history, tools, chat.mode)
 

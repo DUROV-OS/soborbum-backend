@@ -4,6 +4,7 @@ autogenerate run. Import this module (not its contents) for the side effect.
 """
 
 from app.ai import models as _ai_models  # noqa: F401
+from app.board import models as _board_models  # noqa: F401
 from app.clients import models as _clients_models  # noqa: F401
 from app.common import files as _files_models  # noqa: F401
 from app.cycle import models as _cycle_models  # noqa: F401
