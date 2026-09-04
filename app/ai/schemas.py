@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.ai.models import ChatDomain, ChatMode, PendingActionStatus
 
@@ -14,6 +14,10 @@ class AskRequest(BaseModel):
 
 class ChatModeUpdate(BaseModel):
     mode: ChatMode
+
+
+class ChatTitleUpdate(BaseModel):
+    title: str | None = Field(default=None, max_length=255)
 
 
 class ChatOut(BaseModel):

@@ -5,7 +5,15 @@ from app.ai import engine
 from app.ai import mcp_auth
 from app.ai import service as ai_service
 from app.ai.models import ChatDomain, McpCredential, PendingAction
-from app.ai.schemas import AskRequest, AskResponse, ChatDetailOut, ChatModeUpdate, ChatOut, PendingActionOut
+from app.ai.schemas import (
+    AskRequest,
+    AskResponse,
+    ChatDetailOut,
+    ChatModeUpdate,
+    ChatOut,
+    ChatTitleUpdate,
+    PendingActionOut,
+)
 from app.common.module_access import Module
 from app.core.config import settings
 from app.core.deps import require_admin, require_module
@@ -100,6 +108,14 @@ def update_chat_mode(
 ):
     chat = ai_service.get_own_chat_or_404(db, user, chat_id)
     return ai_service.update_mode(db, chat, payload.mode)
+
+
+@app.patch("/chats/{chat_id}/title", response_model=ChatOut)
+def update_chat_title(
+    chat_id: int, payload: ChatTitleUpdate, db: Session = Depends(get_db), user: User = Depends(require_ai)
+):
+    chat = ai_service.get_own_chat_or_404(db, user, chat_id)
+    return ai_service.update_title(db, chat, payload.title)
 
 
 @app.delete("/chats/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)

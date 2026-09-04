@@ -42,6 +42,13 @@ def update_mode(db: Session, chat: Chat, mode: ChatMode) -> Chat:
     return chat
 
 
+def update_title(db: Session, chat: Chat, title: str | None) -> Chat:
+    chat.title = title.strip() or None if title is not None else None
+    db.commit()
+    db.refresh(chat)
+    return chat
+
+
 def delete_chat(db: Session, chat: Chat) -> None:
     db.delete(chat)
     db.commit()
