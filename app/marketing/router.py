@@ -21,7 +21,7 @@ from app.users.models import User
 app = FastAPI(
     title="Soborbum — Маркетинг",
     description="Календарь выпуска контента: от идеи до анализа результатов.",
-    version="1.0.0",
+    version="0.1",
 )
 
 require_marketing = require_module(AccessModule.MARKETING)

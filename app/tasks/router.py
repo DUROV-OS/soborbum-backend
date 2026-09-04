@@ -15,7 +15,7 @@ app = FastAPI(
     title="Soborbum — Задачи",
     description="Общий раздел задач сотрудников: ручные задачи и задачи, "
     "синхронизированные с производством, клиентами, складом и маркетингом.",
-    version="1.0.0",
+    version="0.1",
 )
 
 require_tasks = require_module(Module.TASKS)

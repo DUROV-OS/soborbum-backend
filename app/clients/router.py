@@ -23,7 +23,7 @@ app = FastAPI(
     title="Soborbum — Клиенты",
     description="Клиенты от лида до постоплаты: базовые, проектные, "
     "документные данные, оплата и заметки.",
-    version="1.0.0",
+    version="0.1",
 )
 
 require_clients = require_module(Module.CLIENTS)
