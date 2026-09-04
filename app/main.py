@@ -1,8 +1,10 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect
 
 from app.clients.router import app as clients_app
 from app.common.files import router as files_router
+from app.core.config import settings
 from app.cycle.router import app as cycle_app
 from app.db import import_all_models  # noqa: F401  (registers all models with Base.metadata)
 from app.db.base import Base
@@ -16,6 +18,17 @@ from app.users.service import bootstrap_admin
 from app.warehouse.router import app as warehouse_app
 
 app = FastAPI(title="Soborbum")
+
+# Applied at the root app, so it also covers requests routed into the mounted
+# per-section sub-apps below (CORSMiddleware wraps the whole ASGI stack,
+# including Mount dispatch) - the frontend only ever talks to this one origin.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")

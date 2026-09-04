@@ -16,5 +16,13 @@ class Settings(BaseSettings):
     admin_password: str = "admin123"
     admin_full_name: str = "Administrator"
 
+    # Comma-separated list of origins the frontend is served from, e.g.
+    # "http://localhost:5173,http://localhost:3000". "*" allows any origin.
+    cors_allowed_origins: str = "*"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+
 
 settings = Settings()
