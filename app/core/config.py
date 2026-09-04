@@ -27,20 +27,24 @@ class Settings(BaseSettings):
     # --- AI assistant (app/ai) ---
     anthropic_api_key: str = ""
     ai_model: str = "claude-sonnet-5"
-    # Remote MCP connector to the knowledge base - OAuth2 client-credentials
-    # (the server hands out its own access tokens, we exchange client_id +
-    # client_secret for one via mcp_oauth_token_url, see app/ai/mcp_auth.py).
-    # Empty mcp_server_url means "no MCP server attached".
+
+    # Remote MCP connector to the knowledge base. This provider only
+    # supports the interactive authorization_code grant (confirmed via its
+    # .well-known/oauth-authorization-server - no client_credentials), so an
+    # admin has to complete a one-time browser authorization
+    # (GET /api/ai/mcp/authorize -> approve -> redirected to mcp_redirect_uri
+    # -> tokens stored in the ai_mcp_credentials table). After that,
+    # app/ai/mcp_auth.py refreshes the access token on its own via
+    # grant_type=refresh_token. mcp_redirect_uri must exactly match one of
+    # the redirect URIs registered for this OAuth client with the provider.
     mcp_server_url: str = ""
-    mcp_oauth_token_url: str = ""
     mcp_oauth_client_id: str = ""
     mcp_oauth_client_secret: str = ""
+    mcp_redirect_uri: str = "http://127.0.0.1:8000/callback"
 
     @property
     def mcp_configured(self) -> bool:
-        return bool(
-            self.mcp_server_url and self.mcp_oauth_token_url and self.mcp_oauth_client_id and self.mcp_oauth_client_secret
-        )
+        return bool(self.mcp_server_url and self.mcp_oauth_client_id and self.mcp_oauth_client_secret)
 
 
 settings = Settings()
