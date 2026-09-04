@@ -1,6 +1,7 @@
 from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.ai import analytics as ai_analytics
 from app.ai import engine
 from app.ai import mcp_auth
 from app.ai import service as ai_service
@@ -13,6 +14,7 @@ from app.ai.schemas import (
     ChatOut,
     ChatTitleUpdate,
     PendingActionOut,
+    SectionAnalyticsOut,
 )
 from app.common.module_access import Module
 from app.core.config import settings
@@ -24,7 +26,7 @@ app = FastAPI(
     title="Soborbum — ИИ",
     description="Ассистент на Claude поверх всех разделов: чаты по каждому блоку, общий чат "
     "и одобрение действий, которые ИИ предлагает выполнить.",
-    version="0.1",
+    version="0.11",
 )
 
 require_ai = require_module(Module.AI)
@@ -90,6 +92,41 @@ def ask_tasks(payload: AskRequest, db: Session = Depends(get_db), user: User = D
 @app.post("/chat/ask", response_model=AskResponse)
 def ask_general(payload: AskRequest, db: Session = Depends(get_db), user: User = Depends(require_ai)):
     return _ask(db, user, ChatDomain.GENERAL, payload)
+
+
+@app.get("/clients/analytics", response_model=SectionAnalyticsOut)
+def analytics_clients(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.CLIENTS))):
+    return ai_analytics.generate_section_analytics(db, user, "clients")
+
+
+@app.get("/production/analytics", response_model=SectionAnalyticsOut)
+def analytics_production(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.PRODUCTION))):
+    return ai_analytics.generate_section_analytics(db, user, "production")
+
+
+@app.get("/installation/analytics", response_model=SectionAnalyticsOut)
+def analytics_installation(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.INSTALLATION))):
+    return ai_analytics.generate_section_analytics(db, user, "installation")
+
+
+@app.get("/cycle/analytics", response_model=SectionAnalyticsOut)
+def analytics_cycle(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.CYCLE))):
+    return ai_analytics.generate_section_analytics(db, user, "cycle")
+
+
+@app.get("/warehouse/analytics", response_model=SectionAnalyticsOut)
+def analytics_warehouse(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.WAREHOUSE))):
+    return ai_analytics.generate_section_analytics(db, user, "warehouse")
+
+
+@app.get("/marketing/analytics", response_model=SectionAnalyticsOut)
+def analytics_marketing(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.MARKETING))):
+    return ai_analytics.generate_section_analytics(db, user, "marketing")
+
+
+@app.get("/tasks/analytics", response_model=SectionAnalyticsOut)
+def analytics_tasks(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.TASKS))):
+    return ai_analytics.generate_section_analytics(db, user, "tasks")
 
 
 @app.get("/chats", response_model=list[ChatOut])

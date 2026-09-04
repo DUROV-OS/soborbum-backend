@@ -21,7 +21,7 @@ from app.warehouse.schemas import (
 app = FastAPI(
     title="Soborbum — Склад",
     description="Материалы, поставки, заявки от производства и история движения материалов.",
-    version="0.1.1",
+    version="0.1.2",
 )
 
 require_warehouse = require_module(AccessModule.WAREHOUSE)

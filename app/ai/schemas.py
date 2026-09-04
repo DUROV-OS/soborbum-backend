@@ -63,3 +63,13 @@ class AskResponse(BaseModel):
     status: Literal["completed", "pending_approval"]
     reply: str | None = None
     pending_actions: list[PendingActionOut] = []
+
+
+SectionStatus = Literal["red", "yellow", "green"]
+
+
+class SectionAnalyticsOut(BaseModel):
+    section: str
+    generated_at: datetime
+    summary: str
+    status: SectionStatus

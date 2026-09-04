@@ -12,7 +12,7 @@ from app.users.service import create_user, set_module_access
 app = FastAPI(
     title="Soborbum — Auth & Users",
     description="Аутентификация и управление учётными записями сотрудников.",
-    version="0.1",
+    version="0.11",
 )
 
 

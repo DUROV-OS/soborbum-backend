@@ -11,7 +11,7 @@ from app.users.models import User
 app = FastAPI(
     title="Soborbum — Монтаж",
     description="Доставка, установка и проработка дома на месте.",
-    version="0.1",
+    version="0.11",
 )
 
 require_installation = require_module(AccessModule.INSTALLATION)
