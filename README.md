@@ -28,6 +28,8 @@ docker compose up --build
 | Склад | http://localhost:8000/api/warehouse/docs |
 | Маркетинг | http://localhost:8000/api/marketing/docs |
 | Задачи | http://localhost:8000/api/tasks/docs |
+| ИИ-ассистент | http://localhost:8000/api/ai/docs |
+| Совет директоров | http://localhost:8000/api/board/docs |
 
 Авторизация — JWT: `POST /api/auth/login` (форма `username`/`password`), затем
 `Authorize` в любом Swagger UI с полученным токеном (действует на все разделы,
