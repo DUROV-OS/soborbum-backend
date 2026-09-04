@@ -2,7 +2,7 @@ import enum
 
 
 class Module(str, enum.Enum):
-    """The 7 sections of the system, used for per-worker access grants
+    """The sections of the system, used for per-worker access grants
     (app/users) and for tagging auto-created cross-section tasks (app/tasks)."""
 
     CLIENTS = "clients"
@@ -13,3 +13,4 @@ class Module(str, enum.Enum):
     MARKETING = "marketing"
     TASKS = "tasks"
     AI = "ai"
+    BOARD = "board"
