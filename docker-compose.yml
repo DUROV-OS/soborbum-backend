@@ -37,7 +37,7 @@ services:
       - ./alembic:/app/alembic
       - storage_data:/app/storage
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8005:8000"
 
 volumes:
   db_data:
