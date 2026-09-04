@@ -9,6 +9,7 @@ from app.clients.router import app as clients_app
 from app.common.files import router as files_router
 from app.core.config import settings
 from app.cycle.router import app as cycle_app
+from app.dashboard.router import app as dashboard_app
 from app.db import import_all_models  # noqa: F401  (registers all models with Base.metadata)
 from app.db.base import Base
 from app.db.session import engine, get_db, SessionLocal
@@ -74,3 +75,4 @@ app.mount("/api/warehouse", warehouse_app)
 app.mount("/api/marketing", marketing_app)
 app.mount("/api/tasks", tasks_app)
 app.mount("/api/ai", ai_app)
+app.mount("/api/dashboard", dashboard_app)
