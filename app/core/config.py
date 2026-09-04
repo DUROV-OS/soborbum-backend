@@ -27,10 +27,20 @@ class Settings(BaseSettings):
     # --- AI assistant (app/ai) ---
     anthropic_api_key: str = ""
     ai_model: str = "claude-sonnet-5"
-    # Remote MCP connector to the knowledge base, filled in later once
-    # connection details are provided - empty means "no MCP server attached".
+    # Remote MCP connector to the knowledge base - OAuth2 client-credentials
+    # (the server hands out its own access tokens, we exchange client_id +
+    # client_secret for one via mcp_oauth_token_url, see app/ai/mcp_auth.py).
+    # Empty mcp_server_url means "no MCP server attached".
     mcp_server_url: str = ""
-    mcp_server_token: str = ""
+    mcp_oauth_token_url: str = ""
+    mcp_oauth_client_id: str = ""
+    mcp_oauth_client_secret: str = ""
+
+    @property
+    def mcp_configured(self) -> bool:
+        return bool(
+            self.mcp_server_url and self.mcp_oauth_token_url and self.mcp_oauth_client_id and self.mcp_oauth_client_secret
+        )
 
 
 settings = Settings()

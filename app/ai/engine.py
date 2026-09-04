@@ -11,6 +11,7 @@ import anthropic
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.ai import mcp_auth
 from app.ai.models import Chat, ChatMode, Message, PendingAction, PendingActionStatus
 from app.ai.prompts import SYSTEM_PROMPTS
 from app.ai.tools import DOMAIN_TOOLS, TOOLS
@@ -64,7 +65,7 @@ def _call_claude(system: str, messages: list[dict], tools: list[dict]):
     if tools:
         kwargs["tools"] = tools
 
-    if settings.mcp_server_url:
+    if settings.mcp_configured:
         return client.beta.messages.create(
             betas=[MCP_BETA],
             mcp_servers=[
@@ -72,7 +73,7 @@ def _call_claude(system: str, messages: list[dict], tools: list[dict]):
                     "type": "url",
                     "url": settings.mcp_server_url,
                     "name": "knowledge-base",
-                    "authorization_token": settings.mcp_server_token,
+                    "authorization_token": mcp_auth.get_access_token(),
                 }
             ],
             **kwargs,
