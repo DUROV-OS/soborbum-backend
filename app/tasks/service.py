@@ -125,6 +125,23 @@ def _cascade_readiness(db: Session, completed_task: Task) -> None:
     db.flush()
 
 
+def _finalize_status(db: Session, task: Task, new_status: TaskStatus) -> Task:
+    """Apply a status that has already been permission-checked (or needs no
+    check, e.g. the auto DONE below), then run the readiness cascade and
+    task_sync. Not exported: always go through set_status or force_close."""
+    task.status = new_status
+    db.flush()
+
+    if task.status == TaskStatus.IN_REVIEW and not task.reviewers:
+        return _finalize_status(db, task, TaskStatus.DONE)
+
+    if task.status == TaskStatus.DONE:
+        _cascade_readiness(db, task)
+        task_sync.handle_task_closed(db, task)
+
+    return task
+
+
 def set_status(db: Session, task: Task, new_status: TaskStatus, actor: User) -> Task:
     if task.status == new_status:
         return task
@@ -144,17 +161,7 @@ def set_status(db: Session, task: Task, new_status: TaskStatus, actor: User) -> 
     if role_required == "reviewer" and actor not in task.reviewers:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Перевести задачу может только проверяющий")
 
-    task.status = new_status
-    db.flush()
-
-    if task.status == TaskStatus.IN_REVIEW and not task.reviewers:
-        return set_status(db, task, TaskStatus.DONE, actor)
-
-    if task.status == TaskStatus.DONE:
-        _cascade_readiness(db, task)
-        task_sync.handle_task_closed(db, task)
-
-    return task
+    return _finalize_status(db, task, new_status)
 
 
 def force_close(db: Session, task: Task) -> None:

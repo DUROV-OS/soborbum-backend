@@ -44,13 +44,13 @@ class Client(Base):
 
     # --- Project info: appears at DISCUSSION, required before APPROVAL, then locked ---
     wishes_description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    estimated_price: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
-    house_area: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    estimated_price: Mapped[float | None] = mapped_column(Numeric(14, 2, asdecimal=False), nullable=True)
+    house_area: Mapped[float | None] = mapped_column(Numeric(10, 2, asdecimal=False), nullable=True)
     layout_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     project_locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # --- Documents info: appears at APPROVAL, required before PAYMENT, then locked ---
-    final_price: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    final_price: Mapped[float | None] = mapped_column(Numeric(14, 2, asdecimal=False), nullable=True)
     installation_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     contract_file_id: Mapped[int | None] = mapped_column(ForeignKey("file_assets.id"), nullable=True)
     house_project_file_id: Mapped[int | None] = mapped_column(ForeignKey("file_assets.id"), nullable=True)

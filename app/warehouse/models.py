@@ -31,8 +31,8 @@ class WarehouseMaterial(Base):
     supplier_phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     unit: Mapped[str] = mapped_column(String(32), nullable=False)
-    quantity_in_stock: Mapped[float] = mapped_column(Numeric(14, 3), nullable=False, default=0)
-    threshold: Mapped[float] = mapped_column(Numeric(14, 3), nullable=False, default=0)
+    quantity_in_stock: Mapped[float] = mapped_column(Numeric(14, 3, asdecimal=False), nullable=False, default=0)
+    threshold: Mapped[float] = mapped_column(Numeric(14, 3, asdecimal=False), nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -54,7 +54,7 @@ class SupplyLine(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     supply_id: Mapped[int] = mapped_column(ForeignKey("supplies.id", ondelete="CASCADE"), nullable=False)
     warehouse_material_id: Mapped[int] = mapped_column(ForeignKey("warehouse_materials.id"), nullable=False)
-    quantity: Mapped[float] = mapped_column(Numeric(14, 3), nullable=False)
+    quantity: Mapped[float] = mapped_column(Numeric(14, 3, asdecimal=False), nullable=False)
 
     supply: Mapped["Supply"] = relationship(back_populates="lines")
     warehouse_material: Mapped["WarehouseMaterial"] = relationship()
@@ -65,7 +65,7 @@ class StockMovement(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     warehouse_material_id: Mapped[int] = mapped_column(ForeignKey("warehouse_materials.id"), nullable=False)
-    delta: Mapped[float] = mapped_column(Numeric(14, 3), nullable=False)
+    delta: Mapped[float] = mapped_column(Numeric(14, 3, asdecimal=False), nullable=False)
     reason: Mapped[StockMovementReason] = mapped_column(
         Enum(StockMovementReason, name="stock_movement_reason"), nullable=False
     )

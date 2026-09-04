@@ -37,6 +37,7 @@ def create_material(db: Session, payload: WarehouseMaterialCreate) -> WarehouseM
     material = WarehouseMaterial(**payload.model_dump())
     db.add(material)
     db.flush()
+    sync_shortage_task(db, material)
     return material
 
 
