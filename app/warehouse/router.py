@@ -8,7 +8,7 @@ from app.db.session import get_db
 from app.production.schemas import MaterialRequestOut
 from app.users.models import User
 from app.warehouse import excel, service as warehouse_service
-from app.warehouse.models import StockMovementReason, Supply
+from app.warehouse.models import MaterialCategory, StockMovementReason, Supply, Warehouse
 from app.warehouse.schemas import (
     StockMovementOut,
     SupplyCreate,
@@ -21,10 +21,20 @@ from app.warehouse.schemas import (
 app = FastAPI(
     title="Soborbum — Склад",
     description="Материалы, поставки, заявки от производства и история движения материалов.",
-    version="1.0.0",
+    version="0.1.1",
 )
 
 require_warehouse = require_module(AccessModule.WAREHOUSE)
+
+
+@app.get("/warehouses", response_model=list[str])
+def list_warehouses(_: User = Depends(require_warehouse)):
+    return [w.value for w in Warehouse]
+
+
+@app.get("/categories", response_model=list[str])
+def list_categories(_: User = Depends(require_warehouse)):
+    return [c.value for c in MaterialCategory]
 
 
 @app.get("/materials", response_model=list[WarehouseMaterialOut])
@@ -32,8 +42,9 @@ def list_materials(
     db: Session = Depends(get_db),
     _: User = Depends(require_warehouse),
     needs_supply: bool | None = None,
+    warehouse: Warehouse | None = None,
 ):
-    return warehouse_service.list_materials(db, only_needs_supply=bool(needs_supply))
+    return warehouse_service.list_materials(db, only_needs_supply=bool(needs_supply), warehouse=warehouse)
 
 
 @app.post("/materials", response_model=WarehouseMaterialOut, status_code=201)
@@ -99,9 +110,14 @@ def create_supply(payload: SupplyCreate, db: Session = Depends(get_db), user: Us
 
 
 @app.post("/supplies/import", response_model=SupplyOut, status_code=201)
-def import_supply(file: UploadFile, db: Session = Depends(get_db), user: User = Depends(require_warehouse)):
+def import_supply(
+    warehouse: Warehouse,
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_warehouse),
+):
     rows = excel.parse_supply_rows(file)
-    supply = warehouse_service.import_supply(db, rows, user)
+    supply = warehouse_service.import_supply(db, rows, warehouse, user)
     db.commit()
     db.refresh(supply)
     return supply

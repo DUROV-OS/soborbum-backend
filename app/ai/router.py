@@ -24,7 +24,7 @@ app = FastAPI(
     title="Soborbum — ИИ",
     description="Ассистент на Claude поверх всех разделов: чаты по каждому блоку, общий чат "
     "и одобрение действий, которые ИИ предлагает выполнить.",
-    version="1.0.0",
+    version="0.1",
 )
 
 require_ai = require_module(Module.AI)

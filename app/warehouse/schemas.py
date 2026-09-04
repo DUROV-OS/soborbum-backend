@@ -2,28 +2,28 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.warehouse.models import StockMovementReason
+from app.warehouse.models import MaterialCategory, StockMovementReason, Warehouse
 
 
 class WarehouseMaterialCreate(BaseModel):
-    material_type: str
-    size: str | None = None
+    warehouse: Warehouse
+    category: MaterialCategory = MaterialCategory.NONE
     title: str
-    supplier_name: str | None = None
-    supplier_contact: str | None = None
-    supplier_phone: str | None = None
+    code: str
     unit: str
+    is_fractional: bool = False
     quantity_in_stock: float = 0
+    purchase_price: float = 0
     threshold: float = 0
 
 
 class WarehouseMaterialUpdate(BaseModel):
-    material_type: str | None = None
-    size: str | None = None
+    category: MaterialCategory | None = None
     title: str | None = None
-    supplier_name: str | None = None
-    supplier_contact: str | None = None
-    supplier_phone: str | None = None
+    code: str | None = None
+    unit: str | None = None
+    is_fractional: bool | None = None
+    purchase_price: float | None = None
     threshold: float | None = None
 
 
@@ -38,14 +38,14 @@ class WarehouseMaterialOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    material_type: str
-    size: str | None
+    warehouse: Warehouse
+    category: MaterialCategory
     title: str
-    supplier_name: str | None
-    supplier_contact: str | None
-    supplier_phone: str | None
+    code: str
     unit: str
+    is_fractional: bool
     quantity_in_stock: float
+    purchase_price: float
     threshold: float
     total_requested: float
     needs_supply: bool

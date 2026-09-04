@@ -9,7 +9,14 @@ from app.tasks import service as task_service
 from app.tasks.models import Task, TaskLinkType, TaskStatus
 from app.users import service as user_service
 from app.users.models import User
-from app.warehouse.models import StockMovement, StockMovementReason, Supply, SupplyLine, WarehouseMaterial
+from app.warehouse.models import (
+    StockMovement,
+    StockMovementReason,
+    Supply,
+    SupplyLine,
+    Warehouse,
+    WarehouseMaterial,
+)
 from app.warehouse.schemas import (
     RequestBreakdownItem,
     SupplyCreate,
@@ -87,14 +94,14 @@ def to_out(db: Session, material: WarehouseMaterial) -> WarehouseMaterialOut:
     requested = sum(item.quantity_requested for item in breakdown)
     return WarehouseMaterialOut(
         id=material.id,
-        material_type=material.material_type,
-        size=material.size,
+        warehouse=material.warehouse,
+        category=material.category,
         title=material.title,
-        supplier_name=material.supplier_name,
-        supplier_contact=material.supplier_contact,
-        supplier_phone=material.supplier_phone,
+        code=material.code,
         unit=material.unit,
+        is_fractional=material.is_fractional,
         quantity_in_stock=float(material.quantity_in_stock),
+        purchase_price=float(material.purchase_price),
         threshold=float(material.threshold),
         total_requested=requested,
         needs_supply=needs_supply(material, requested),
@@ -103,8 +110,13 @@ def to_out(db: Session, material: WarehouseMaterial) -> WarehouseMaterialOut:
     )
 
 
-def list_materials(db: Session, only_needs_supply: bool = False) -> list[WarehouseMaterialOut]:
-    materials = db.query(WarehouseMaterial).order_by(WarehouseMaterial.id).all()
+def list_materials(
+    db: Session, only_needs_supply: bool = False, warehouse: Warehouse | None = None
+) -> list[WarehouseMaterialOut]:
+    query = db.query(WarehouseMaterial)
+    if warehouse is not None:
+        query = query.filter(WarehouseMaterial.warehouse == warehouse)
+    materials = query.order_by(WarehouseMaterial.id).all()
     result = [to_out(db, m) for m in materials]
     if only_needs_supply:
         result = [r for r in result if r.needs_supply]
@@ -214,12 +226,20 @@ def reject_request(db: Session, request: MaterialRequest, decided_by: User) -> M
 
 
 def create_supply(db: Session, payload: SupplyCreate, created_by: User) -> Supply:
+    materials = {line.warehouse_material_id: get_material_or_404(db, line.warehouse_material_id) for line in payload.lines}
+    warehouses = {m.warehouse for m in materials.values()}
+    if len(warehouses) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Поставка должна ссылаться на материалы только одного склада",
+        )
+
     supply = Supply(supplier_name=payload.supplier_name, created_by_id=created_by.id)
     db.add(supply)
     db.flush()
 
     for line in payload.lines:
-        material = get_material_or_404(db, line.warehouse_material_id)
+        material = materials[line.warehouse_material_id]
         db.add(SupplyLine(supply_id=supply.id, warehouse_material_id=material.id, quantity=line.quantity))
         material.quantity_in_stock += line.quantity
         db.flush()
@@ -230,7 +250,7 @@ def create_supply(db: Session, payload: SupplyCreate, created_by: User) -> Suppl
     return supply
 
 
-def import_supply(db: Session, rows: list[dict], created_by: User) -> Supply:
+def import_supply(db: Session, rows: list[dict], warehouse: Warehouse, created_by: User) -> Supply:
     supply = Supply(supplier_name=None, created_by_id=created_by.id)
     db.add(supply)
     db.flush()
@@ -239,10 +259,15 @@ def import_supply(db: Session, rows: list[dict], created_by: User) -> Supply:
         material: WarehouseMaterial | None = None
         if row["warehouse_material_id"] is not None:
             material = get_material_or_404(db, row["warehouse_material_id"])
+            if material.warehouse != warehouse:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Материал «{material.title}» принадлежит другому складу",
+                )
         else:
             material = (
                 db.query(WarehouseMaterial)
-                .filter_by(material_type=row["material_type"], size=row["size"], title=row["title"])
+                .filter_by(warehouse=warehouse, code=row["code"])
                 .first()
             )
             if material is None:
@@ -252,10 +277,13 @@ def import_supply(db: Session, rows: list[dict], created_by: User) -> Supply:
                         detail=f"Для нового материала «{row['title']}» нужно указать единицу измерения",
                     )
                 material = WarehouseMaterial(
-                    material_type=row["material_type"] or "",
-                    size=row["size"],
+                    warehouse=warehouse,
+                    category=row["category"],
+                    code=row["code"],
                     title=row["title"],
                     unit=row["unit"],
+                    is_fractional=row["is_fractional"],
+                    purchase_price=row["purchase_price"],
                     quantity_in_stock=0,
                     threshold=0,
                 )
