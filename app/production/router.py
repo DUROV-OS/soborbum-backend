@@ -21,7 +21,7 @@ from app.users.models import User
 app = FastAPI(
     title="Soborbum — Производство",
     description="Модули дома, их задачи и необходимые материалы, запросы материалов со склада.",
-    version="0.11",
+    version="0.1.1",
 )
 
 require_production = require_module(AccessModule.PRODUCTION)
