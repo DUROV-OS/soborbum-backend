@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect
 
+from app.ai.router import app as ai_app
 from app.clients.router import app as clients_app
 from app.common.files import router as files_router
 from app.core.config import settings
@@ -60,3 +61,4 @@ app.mount("/api/cycles", cycle_app)
 app.mount("/api/warehouse", warehouse_app)
 app.mount("/api/marketing", marketing_app)
 app.mount("/api/tasks", tasks_app)
+app.mount("/api/ai", ai_app)

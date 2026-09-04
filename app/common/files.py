@@ -63,6 +63,27 @@ class FileAssetOut(BaseModel):
     created_at: datetime
 
 
+def save_text_file(db: Session, filename: str, content: str, purpose: FilePurpose, user) -> FileAsset:
+    """Persist AI-generated (or otherwise in-memory) text content as a FileAsset,
+    for cases with no incoming UploadFile - see save_upload_file for that case."""
+    os.makedirs(settings.storage_dir, exist_ok=True)
+    disk_name = f"{uuid.uuid4().hex}_{filename}"
+    path_on_disk = os.path.join(settings.storage_dir, disk_name)
+    with open(path_on_disk, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    asset = FileAsset(
+        filename=filename,
+        content_type="text/plain; charset=utf-8",
+        path_on_disk=path_on_disk,
+        purpose=purpose,
+        uploaded_by_id=user.id,
+    )
+    db.add(asset)
+    db.flush()
+    return asset
+
+
 def save_upload_file(db: Session, upload_file: UploadFile, purpose: FilePurpose, user) -> FileAsset:
     os.makedirs(settings.storage_dir, exist_ok=True)
     disk_name = f"{uuid.uuid4().hex}_{upload_file.filename}"

@@ -24,5 +24,13 @@ class Settings(BaseSettings):
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
 
+    # --- AI assistant (app/ai) ---
+    anthropic_api_key: str = ""
+    ai_model: str = "claude-sonnet-5"
+    # Remote MCP connector to the knowledge base, filled in later once
+    # connection details are provided - empty means "no MCP server attached".
+    mcp_server_url: str = ""
+    mcp_server_token: str = ""
+
 
 settings = Settings()
