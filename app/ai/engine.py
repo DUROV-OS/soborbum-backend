@@ -21,6 +21,17 @@ from app.users.models import User
 MAX_ITERATIONS = 8
 MCP_BETA = "mcp-client-2025-04-04"
 
+# The knowledge-base MCP server executes tool calls on Anthropic's side,
+# inline within a single messages.create response - unlike our own tools,
+# we never see the call before it runs, so there's no way to route a
+# mutating one through PendingAction for require_approval. The only lever
+# is the connector's tool_configuration.allowed_tools, applied per call
+# below: NO_ACTIONS and REQUIRE_APPROVAL both get read-only KB tools only,
+# AUTO_APPROVE gets all of them (mirrors how strict each mode already is
+# for our own tools, since REQUIRE_APPROVAL can't honestly offer per-call
+# approval here).
+MCP_READ_ONLY_TOOLS = ["read_index", "list_notes", "search_notes", "read_note", "get_unread_files"]
+
 
 @dataclass
 class TurnResult:
@@ -54,11 +65,16 @@ def _build_history(chat: Chat) -> list[dict]:
     return [{"role": m.role, "content": m.content} for m in chat.messages]
 
 
-def _call_claude(db: Session, system: str, messages: list[dict], tools: list[dict]):
+def _call_claude(db: Session, system: str, messages: list[dict], tools: list[dict], mode: ChatMode):
     client = _get_client()
     kwargs = {
         "model": settings.ai_model,
-        "max_tokens": 2048,
+        # Generous on purpose: a single turn can involve reading several full
+        # knowledge-base documents inline (the MCP connector embeds their
+        # content as mcp_tool_result blocks in this same response) before the
+        # model writes a generated document as a tool call argument - 2048
+        # was getting exhausted mid-tool-call, silently truncating it.
+        "max_tokens": 8192,
         "system": system,
         "messages": messages,
     }
@@ -66,16 +82,17 @@ def _call_claude(db: Session, system: str, messages: list[dict], tools: list[dic
         kwargs["tools"] = tools
 
     if settings.mcp_configured:
+        mcp_server: dict = {
+            "type": "url",
+            "url": settings.mcp_server_url,
+            "name": "knowledge-base",
+            "authorization_token": mcp_auth.get_access_token(db),
+        }
+        if mode != ChatMode.AUTO_APPROVE:
+            mcp_server["tool_configuration"] = {"allowed_tools": MCP_READ_ONLY_TOOLS}
         return client.beta.messages.create(
             betas=[MCP_BETA],
-            mcp_servers=[
-                {
-                    "type": "url",
-                    "url": settings.mcp_server_url,
-                    "name": "knowledge-base",
-                    "authorization_token": mcp_auth.get_access_token(db),
-                }
-            ],
+            mcp_servers=[mcp_server],
             **kwargs,
         )
     return client.messages.create(**kwargs)
@@ -117,13 +134,21 @@ def _advance(db: Session, chat: Chat, user: User) -> TurnResult:
         system = SYSTEM_PROMPTS[chat.domain]
         history = _build_history(chat)
         tools = _available_tools(chat, user)
-        response = _call_claude(db, system, history, tools)
+        response = _call_claude(db, system, history, tools, chat.mode)
 
         content_blocks = [block.model_dump(mode="json") for block in response.content]
         assistant_message = Message(chat_id=chat.id, role="assistant", content=content_blocks)
         db.add(assistant_message)
         db.commit()
         db.refresh(assistant_message)
+
+        if response.stop_reason == "max_tokens":
+            text = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
+            note = (
+                "Ответ обрезан из-за лимита длины (возможно, посреди вызова инструмента) - "
+                "попробуй сформулировать запрос уже или разбить его на части."
+            )
+            return TurnResult(status="completed", reply=(text + "\n\n" + note) if text else note)
 
         if response.stop_reason != "tool_use":
             text = "".join(b.get("text", "") for b in content_blocks if b.get("type") == "text")
