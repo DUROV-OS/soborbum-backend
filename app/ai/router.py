@@ -1,7 +1,8 @@
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.ai import analytics as ai_analytics
+from app.ai import attachments as ai_attachments
 from app.ai import engine
 from app.ai import mcp_auth
 from app.ai import priorities as ai_priorities
@@ -18,6 +19,7 @@ from app.ai.schemas import (
     SectionAnalyticsOut,
     TaskPrioritiesOut,
 )
+from app.common.files import FileAssetOut
 from app.common.module_access import Module
 from app.core.config import settings
 from app.core.deps import require_admin, require_module
@@ -28,7 +30,7 @@ app = FastAPI(
     title="Soborbum — ИИ",
     description="Ассистент на Claude поверх всех разделов: чаты по каждому блоку, общий чат "
     "и одобрение действий, которые ИИ предлагает выполнить.",
-    version="0.2",
+    version="0.3",
 )
 
 require_ai = require_module(Module.AI)
@@ -52,7 +54,7 @@ def _to_pending_out(pa: PendingAction) -> PendingActionOut:
 
 def _ask(db: Session, user: User, domain: ChatDomain, payload: AskRequest) -> AskResponse:
     chat = ai_service.get_or_create_chat(db, user, domain, payload.chat_id, payload.mode)
-    result = engine.run_turn(db, chat, user, payload.message)
+    result = engine.run_turn(db, chat, user, payload.message, payload.file_ids)
     return AskResponse(
         chat_id=chat.id,
         status=result.status,
@@ -134,6 +136,17 @@ def analytics_tasks(db: Session = Depends(get_db), user: User = Depends(require_
 @app.get("/tasks/priorities", response_model=TaskPrioritiesOut)
 def task_priorities(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.TASKS))):
     return ai_priorities.generate_task_priorities(db, user)
+
+
+@app.post("/files", response_model=FileAssetOut)
+def upload_chat_file(file: UploadFile, db: Session = Depends(get_db), user: User = Depends(require_ai)):
+    """Upload a file (image, PDF, or plain-text document) to attach to a chat
+    message: pass the returned id in AskRequest.file_ids. Download stays on
+    the shared GET /files/{file_id} route."""
+    asset = ai_attachments.upload_attachment(db, file, user)
+    db.commit()
+    db.refresh(asset)
+    return asset
 
 
 @app.get("/chats", response_model=list[ChatOut])
