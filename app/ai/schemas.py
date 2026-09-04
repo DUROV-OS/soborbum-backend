@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.ai.models import ChatDomain, ChatMode, PendingActionStatus
+from app.tasks.schemas import TaskOut
 
 
 class AskRequest(BaseModel):
@@ -73,3 +74,13 @@ class SectionAnalyticsOut(BaseModel):
     generated_at: datetime
     summary: str
     status: SectionStatus
+
+
+class PriorityTaskOut(BaseModel):
+    task: TaskOut
+    reason: str
+
+
+class TaskPrioritiesOut(BaseModel):
+    generated_at: datetime
+    priorities: list[PriorityTaskOut]

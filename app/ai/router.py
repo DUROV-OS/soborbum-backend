@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.ai import analytics as ai_analytics
 from app.ai import engine
 from app.ai import mcp_auth
+from app.ai import priorities as ai_priorities
 from app.ai import service as ai_service
 from app.ai.models import ChatDomain, McpCredential, PendingAction
 from app.ai.schemas import (
@@ -15,6 +16,7 @@ from app.ai.schemas import (
     ChatTitleUpdate,
     PendingActionOut,
     SectionAnalyticsOut,
+    TaskPrioritiesOut,
 )
 from app.common.module_access import Module
 from app.core.config import settings
@@ -26,7 +28,7 @@ app = FastAPI(
     title="Soborbum — ИИ",
     description="Ассистент на Claude поверх всех разделов: чаты по каждому блоку, общий чат "
     "и одобрение действий, которые ИИ предлагает выполнить.",
-    version="0.11",
+    version="0.2",
 )
 
 require_ai = require_module(Module.AI)
@@ -127,6 +129,11 @@ def analytics_marketing(db: Session = Depends(get_db), user: User = Depends(requ
 @app.get("/tasks/analytics", response_model=SectionAnalyticsOut)
 def analytics_tasks(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.TASKS))):
     return ai_analytics.generate_section_analytics(db, user, "tasks")
+
+
+@app.get("/tasks/priorities", response_model=TaskPrioritiesOut)
+def task_priorities(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.TASKS))):
+    return ai_priorities.generate_task_priorities(db, user)
 
 
 @app.get("/chats", response_model=list[ChatOut])
