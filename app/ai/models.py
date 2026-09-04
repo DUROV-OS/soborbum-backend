@@ -84,10 +84,11 @@ class PendingAction(Base):
 
 
 class McpCredential(Base):
-    """Singleton row (id=1) holding the tokens from the one-time interactive
-    OAuth authorization against the knowledge-base MCP server - see
-    app/ai/mcp_auth.py. There is one shared connection to the knowledge base
-    for the whole system, not one per employee."""
+    """Singleton row (id=1) caching the OAuth tokens for the knowledge-base
+    MCP server, refreshed and re-obtained by app/ai/mcp_auth.py as needed.
+    Losing this row costs one extra round trip, nothing more. There is one
+    shared connection to the knowledge base for the whole system, not one
+    per employee."""
 
     __tablename__ = "ai_mcp_credentials"
 

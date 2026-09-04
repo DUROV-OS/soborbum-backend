@@ -32,6 +32,7 @@ services:
       MCP_SERVER_URL: ${MCP_SERVER_URL:-}
       MCP_OAUTH_CLIENT_ID: ${MCP_OAUTH_CLIENT_ID:-}
       MCP_OAUTH_CLIENT_SECRET: ${MCP_OAUTH_CLIENT_SECRET:-}
+      MCP_REDIRECT_URI: ${MCP_REDIRECT_URI:-http://127.0.0.1:8005/callback}
     volumes:
       - ./app:/app/app
       - ./alembic:/app/alembic

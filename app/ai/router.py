@@ -201,12 +201,15 @@ def reject_pending_action(pending_action_id: int, db: Session = Depends(get_db),
 
 @app.get("/mcp/authorize")
 def mcp_authorize(_: User = Depends(require_admin)):
-    """One-time step: open the returned URL in a browser and approve access.
-    This provider only supports interactive OAuth (no client_credentials),
-    so this has to be done once by a human before the knowledge base is
-    usable - see GET /callback (mounted on the root app, not here, since
-    its path has to exactly match the redirect_uri registered with the
-    provider)."""
+    """Manual authorization: open the returned URL in a browser and approve
+    access, which redirects to GET /callback (mounted on the root app, not
+    here, since its path has to exactly match the redirect_uri registered
+    with the provider).
+
+    Not normally needed - mcp_auth.get_access_token() obtains and renews
+    tokens on its own. Use this if the provider ever starts requiring a
+    consent screen, which is the one case the automatic grant cannot
+    handle."""
     return {"authorize_url": mcp_auth.build_authorize_url()}
 
 

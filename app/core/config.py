@@ -28,15 +28,13 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     ai_model: str = "claude-sonnet-5"
 
-    # Remote MCP connector to the knowledge base. This provider only
-    # supports the interactive authorization_code grant (confirmed via its
-    # .well-known/oauth-authorization-server - no client_credentials), so an
-    # admin has to complete a one-time browser authorization
-    # (GET /api/ai/mcp/authorize -> approve -> redirected to mcp_redirect_uri
-    # -> tokens stored in the ai_mcp_credentials table). After that,
-    # app/ai/mcp_auth.py refreshes the access token on its own via
-    # grant_type=refresh_token. mcp_redirect_uri must exactly match one of
-    # the redirect URIs registered for this OAuth client with the provider.
+    # Remote MCP connector to the knowledge base. The provider advertises
+    # only the authorization_code grant (no client_credentials), but issues
+    # the code without a consent screen, so app/ai/mcp_auth.py runs that
+    # grant headlessly and keeps the token fresh with no human involved.
+    # mcp_redirect_uri is never fetched in that flow, but is still sent and
+    # validated, so it must match a redirect URI registered for this OAuth
+    # client with the provider.
     mcp_server_url: str = ""
     mcp_oauth_client_id: str = ""
     mcp_oauth_client_secret: str = ""
