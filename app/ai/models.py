@@ -81,3 +81,20 @@ class PendingAction(Base):
     chat: Mapped["Chat"] = relationship()
     message: Mapped["Message"] = relationship()
     decided_by: Mapped["User"] = relationship()  # noqa: F821
+
+
+class McpCredential(Base):
+    """Singleton row (id=1) holding the tokens from the one-time interactive
+    OAuth authorization against the knowledge-base MCP server - see
+    app/ai/mcp_auth.py. There is one shared connection to the knowledge base
+    for the whole system, not one per employee."""
+
+    __tablename__ = "ai_mcp_credentials"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    access_token: Mapped[str] = mapped_column(String(4096), nullable=False)
+    refresh_token: Mapped[str | None] = mapped_column(String(4096), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

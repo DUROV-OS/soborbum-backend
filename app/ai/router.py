@@ -2,11 +2,13 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.ai import engine
+from app.ai import mcp_auth
 from app.ai import service as ai_service
-from app.ai.models import ChatDomain, PendingAction
+from app.ai.models import ChatDomain, McpCredential, PendingAction
 from app.ai.schemas import AskRequest, AskResponse, ChatDetailOut, ChatModeUpdate, ChatOut, PendingActionOut
 from app.common.module_access import Module
-from app.core.deps import require_module
+from app.core.config import settings
+from app.core.deps import require_admin, require_module
 from app.db.session import get_db
 from app.users.models import User
 
@@ -135,3 +137,29 @@ def reject_pending_action(pending_action_id: int, db: Session = Depends(get_db),
         reply=result.reply,
         pending_actions=[_to_pending_out(p) for p in result.pending_actions],
     )
+
+
+@app.get("/mcp/authorize")
+def mcp_authorize(_: User = Depends(require_admin)):
+    """One-time step: open the returned URL in a browser and approve access.
+    This provider only supports interactive OAuth (no client_credentials),
+    so this has to be done once by a human before the knowledge base is
+    usable - see GET /callback (mounted on the root app, not here, since
+    its path has to exactly match the redirect_uri registered with the
+    provider)."""
+    return {"authorize_url": mcp_auth.build_authorize_url()}
+
+
+@app.get("/mcp/status")
+def mcp_status(db: Session = Depends(get_db), _: User = Depends(require_admin)):
+    if not settings.mcp_configured:
+        return {"configured": False, "authorized": False}
+    credential = db.get(McpCredential, 1)
+    if credential is None:
+        return {"configured": True, "authorized": False}
+    return {
+        "configured": True,
+        "authorized": True,
+        "expires_at": credential.expires_at,
+        "has_refresh_token": credential.refresh_token is not None,
+    }

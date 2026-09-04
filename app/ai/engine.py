@@ -11,6 +11,7 @@ import anthropic
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.ai import mcp_auth
 from app.ai.models import Chat, ChatMode, Message, PendingAction, PendingActionStatus
 from app.ai.prompts import SYSTEM_PROMPTS
 from app.ai.tools import DOMAIN_TOOLS, TOOLS
@@ -53,7 +54,7 @@ def _build_history(chat: Chat) -> list[dict]:
     return [{"role": m.role, "content": m.content} for m in chat.messages]
 
 
-def _call_claude(system: str, messages: list[dict], tools: list[dict]):
+def _call_claude(db: Session, system: str, messages: list[dict], tools: list[dict]):
     client = _get_client()
     kwargs = {
         "model": settings.ai_model,
@@ -64,7 +65,7 @@ def _call_claude(system: str, messages: list[dict], tools: list[dict]):
     if tools:
         kwargs["tools"] = tools
 
-    if settings.mcp_server_url:
+    if settings.mcp_configured:
         return client.beta.messages.create(
             betas=[MCP_BETA],
             mcp_servers=[
@@ -72,7 +73,7 @@ def _call_claude(system: str, messages: list[dict], tools: list[dict]):
                     "type": "url",
                     "url": settings.mcp_server_url,
                     "name": "knowledge-base",
-                    "authorization_token": settings.mcp_server_token,
+                    "authorization_token": mcp_auth.get_access_token(db),
                 }
             ],
             **kwargs,
@@ -116,7 +117,7 @@ def _advance(db: Session, chat: Chat, user: User) -> TurnResult:
         system = SYSTEM_PROMPTS[chat.domain]
         history = _build_history(chat)
         tools = _available_tools(chat, user)
-        response = _call_claude(system, history, tools)
+        response = _call_claude(db, system, history, tools)
 
         content_blocks = [block.model_dump(mode="json") for block in response.content]
         assistant_message = Message(chat_id=chat.id, role="assistant", content=content_blocks)

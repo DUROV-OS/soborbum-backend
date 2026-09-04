@@ -1,7 +1,9 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect
+from sqlalchemy.orm import Session
 
+from app.ai import mcp_auth
 from app.ai.router import app as ai_app
 from app.clients.router import app as clients_app
 from app.common.files import router as files_router
@@ -9,7 +11,7 @@ from app.core.config import settings
 from app.cycle.router import app as cycle_app
 from app.db import import_all_models  # noqa: F401  (registers all models with Base.metadata)
 from app.db.base import Base
-from app.db.session import engine, SessionLocal
+from app.db.session import engine, get_db, SessionLocal
 from app.installation.router import app as installation_app
 from app.marketing.router import app as marketing_app
 from app.production.router import app as production_app
@@ -49,6 +51,16 @@ def on_startup() -> None:
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/callback")
+def mcp_oauth_callback(code: str, state: str, db: Session = Depends(get_db)):
+    """Redirect target for the one-time MCP authorization (see
+    GET /api/ai/mcp/authorize). Lives at exactly this path on the root app,
+    not under /api/ai, because it has to match the redirect_uri registered
+    with the MCP provider byte-for-byte."""
+    mcp_auth.exchange_code_for_tokens(db, code, state)
+    return {"status": "ok", "detail": "MCP авторизован, можно закрыть эту вкладку."}
 
 
 app.include_router(files_router)
