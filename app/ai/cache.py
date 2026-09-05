@@ -1,0 +1,38 @@
+"""TTL cache for AI-generated answers that are expensive to recompute but
+cheap to reuse for a while - section analytics and task priorities today
+(app/ai/analytics.py, app/ai/priorities.py). Each GET recomputes via Claude
+only if the cached entry is missing, stale, or the caller passed
+`reload=true` (wired through from the frontend's "перезагрузка" button);
+otherwise it's served straight from ai_cache_entries.
+
+Not for chat turns - those are already conversation history, not a cacheable
+snapshot answer.
+"""
+
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy.orm import Session
+
+from app.ai.models import AiCacheEntry
+
+TTL = timedelta(hours=4)
+
+
+def get(db: Session, key: str, force: bool = False) -> dict | None:
+    if force:
+        return None
+    entry = db.get(AiCacheEntry, key)
+    if entry is None or datetime.now(timezone.utc) - entry.generated_at > TTL:
+        return None
+    return entry.payload
+
+
+def set(db: Session, key: str, payload: dict, generated_at: datetime) -> None:
+    entry = db.get(AiCacheEntry, key)
+    if entry is None:
+        entry = AiCacheEntry(key=key, payload=payload, generated_at=generated_at)
+        db.add(entry)
+    else:
+        entry.payload = payload
+        entry.generated_at = generated_at
+    db.commit()

@@ -12,6 +12,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.ai import cache as ai_cache
 from app.ai.schemas import PriorityTaskOut, TaskPrioritiesOut
 from app.core.config import settings
 from app.tasks.models import Task, TaskStatus
@@ -105,9 +106,25 @@ def _serialize_candidate(task: Task, user: User, now: datetime) -> dict:
     }
 
 
-def generate_task_priorities(db: Session, user: User) -> TaskPrioritiesOut:
+def generate_task_priorities(db: Session, user: User, force: bool = False) -> TaskPrioritiesOut:
     now = datetime.now(timezone.utc)
-    candidates = sorted(_load_candidate_tasks(db, user), key=lambda t: _urgency_key(t, now))
+    all_candidates_by_id = {t.id: t for t in _load_candidate_tasks(db, user)}
+
+    # Cached picks are just (task_id, reason) pairs - the AI's opinion, which
+    # is what's slow and worth reusing. The task itself is always re-read
+    # live here, so a task that's since been completed or changed doesn't
+    # show stale for up to 4 hours.
+    cache_key = f"task_priorities:{user.id}"
+    cached = ai_cache.get(db, cache_key, force)
+    if cached is not None:
+        priorities = []
+        for item in cached.get("picks", []):
+            task = all_candidates_by_id.get(item.get("task_id"))
+            if task is not None:
+                priorities.append(PriorityTaskOut(task=TaskOut.from_model(task), reason=item.get("reason", "")))
+        return TaskPrioritiesOut(generated_at=cached["generated_at"], priorities=priorities)
+
+    candidates = sorted(all_candidates_by_id.values(), key=lambda t: _urgency_key(t, now))
     if not candidates:
         return TaskPrioritiesOut(generated_at=now, priorities=[])
 
@@ -150,4 +167,6 @@ def generate_task_priorities(db: Session, user: User) -> TaskPrioritiesOut:
         if len(priorities) == 3:
             break
 
+    picks = [{"task_id": p.task.id, "reason": p.reason} for p in priorities]
+    ai_cache.set(db, cache_key, {"picks": picks, "generated_at": now.isoformat()}, now)
     return TaskPrioritiesOut(generated_at=now, priorities=priorities)

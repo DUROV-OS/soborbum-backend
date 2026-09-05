@@ -99,43 +99,43 @@ def ask_general(payload: AskRequest, db: Session = Depends(get_db), user: User =
 
 
 @app.get("/clients/analytics", response_model=SectionAnalyticsOut)
-def analytics_clients(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.CLIENTS))):
-    return ai_analytics.generate_section_analytics(db, user, "clients")
+def analytics_clients(reload: bool = False, db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.CLIENTS))):
+    return ai_analytics.generate_section_analytics(db, user, "clients", force=reload)
 
 
 @app.get("/production/analytics", response_model=SectionAnalyticsOut)
-def analytics_production(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.PRODUCTION))):
-    return ai_analytics.generate_section_analytics(db, user, "production")
+def analytics_production(reload: bool = False, db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.PRODUCTION))):
+    return ai_analytics.generate_section_analytics(db, user, "production", force=reload)
 
 
 @app.get("/installation/analytics", response_model=SectionAnalyticsOut)
-def analytics_installation(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.INSTALLATION))):
-    return ai_analytics.generate_section_analytics(db, user, "installation")
+def analytics_installation(reload: bool = False, db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.INSTALLATION))):
+    return ai_analytics.generate_section_analytics(db, user, "installation", force=reload)
 
 
 @app.get("/cycle/analytics", response_model=SectionAnalyticsOut)
-def analytics_cycle(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.CYCLE))):
-    return ai_analytics.generate_section_analytics(db, user, "cycle")
+def analytics_cycle(reload: bool = False, db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.CYCLE))):
+    return ai_analytics.generate_section_analytics(db, user, "cycle", force=reload)
 
 
 @app.get("/warehouse/analytics", response_model=SectionAnalyticsOut)
-def analytics_warehouse(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.WAREHOUSE))):
-    return ai_analytics.generate_section_analytics(db, user, "warehouse")
+def analytics_warehouse(reload: bool = False, db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.WAREHOUSE))):
+    return ai_analytics.generate_section_analytics(db, user, "warehouse", force=reload)
 
 
 @app.get("/marketing/analytics", response_model=SectionAnalyticsOut)
-def analytics_marketing(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.MARKETING))):
-    return ai_analytics.generate_section_analytics(db, user, "marketing")
+def analytics_marketing(reload: bool = False, db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.MARKETING))):
+    return ai_analytics.generate_section_analytics(db, user, "marketing", force=reload)
 
 
 @app.get("/tasks/analytics", response_model=SectionAnalyticsOut)
-def analytics_tasks(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.TASKS))):
-    return ai_analytics.generate_section_analytics(db, user, "tasks")
+def analytics_tasks(reload: bool = False, db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.TASKS))):
+    return ai_analytics.generate_section_analytics(db, user, "tasks", force=reload)
 
 
 @app.get("/tasks/priorities", response_model=TaskPrioritiesOut)
-def task_priorities(db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.TASKS))):
-    return ai_priorities.generate_task_priorities(db, user)
+def task_priorities(reload: bool = False, db: Session = Depends(get_db), user: User = Depends(require_ai_and(Module.TASKS))):
+    return ai_priorities.generate_task_priorities(db, user, force=reload)
 
 
 @app.post("/files", response_model=FileAssetOut)

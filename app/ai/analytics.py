@@ -11,6 +11,7 @@ import anthropic
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.ai import cache as ai_cache
 from app.ai.schemas import SectionAnalyticsOut
 from app.core.config import settings
 from app.dashboard.service import SECTION_BUILDERS, SECTION_LABELS
@@ -58,7 +59,12 @@ def _get_client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
 
-def generate_section_analytics(db: Session, user: User, section: str) -> SectionAnalyticsOut:
+def generate_section_analytics(db: Session, user: User, section: str, force: bool = False) -> SectionAnalyticsOut:
+    cache_key = f"section_analytics:{section}"
+    cached = ai_cache.get(db, cache_key, force)
+    if cached is not None:
+        return SectionAnalyticsOut(**cached)
+
     _, builder = SECTION_BUILDERS[section]
     snapshot = builder(db)
 
@@ -87,9 +93,11 @@ def generate_section_analytics(db: Session, user: User, section: str) -> Section
     raw_status = payload.get("status")
     section_status = raw_status if raw_status in ("red", "yellow", "green") else "yellow"
 
-    return SectionAnalyticsOut(
+    result = SectionAnalyticsOut(
         section=section,
         generated_at=datetime.now(timezone.utc),
         summary=payload.get("summary", ""),
         status=section_status,
     )
+    ai_cache.set(db, cache_key, result.model_dump(mode="json"), result.generated_at)
+    return result

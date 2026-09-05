@@ -83,6 +83,23 @@ class PendingAction(Base):
     decided_by: Mapped["User"] = relationship()  # noqa: F821
 
 
+class AiCacheEntry(Base):
+    """Generic TTL cache for AI-generated answers that aren't a chat turn -
+    section analytics (app/ai/analytics.py) and task priorities
+    (app/ai/priorities.py) today. `key` identifies what was asked (e.g.
+    "section_analytics:clients", "task_priorities:42"); `generated_at` is
+    checked against app.ai.cache.CACHE_TTL to decide whether to serve this
+    row or call Claude again - see app/ai/cache.py for the read/write
+    helpers every producer goes through instead of touching this table
+    directly."""
+
+    __tablename__ = "ai_cache_entries"
+
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class McpCredential(Base):
     """Singleton row (id=1) caching the OAuth tokens for the knowledge-base
     MCP server, refreshed and re-obtained by app/ai/mcp_auth.py as needed.
