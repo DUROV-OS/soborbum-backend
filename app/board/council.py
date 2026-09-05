@@ -14,9 +14,13 @@ section, end to end:
    proposal was about, then cascades the change down through its descendants
    and back up through its ancestors - see cascade_down/cascade_up.
 
-Every stage below makes its own Claude call with a forced tool_choice, the
+Most stages below make their own Claude call with a forced tool_choice, the
 same way the rest of app.ai does: the model can't reply with free text, only
-with the structured decision the stage needs.
+with the structured decision the stage needs. The one exception is stage 1's
+per-role opinions (_collect_opinions/_call_subagent): each role is its own
+subagent that can search the knowledge-base MCP connector and the web before
+settling on its opinion, so tool_choice there is "auto", not forced - see
+_call_subagent.
 """
 
 import json
@@ -27,6 +31,7 @@ import anthropic
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.ai import mcp_auth
 from app.board import conductor as board_conductor
 from app.board import prompts
 from app.board import service as board_service
@@ -58,10 +63,69 @@ def _tool_use_input(response, tool_name: str) -> dict | None:
     return block.input if block else None
 
 
+def _create_with_search(client: anthropic.Anthropic, mcp_token: str | None, kwargs: dict):
+    """Like conductor._research_brief's call, but for a subagent that also
+    has to end in a specific structured tool call: attaches the read-only
+    knowledge-base MCP connector when configured, on top of whatever tools
+    the caller already put in kwargs["tools"]. Anthropic (and, through it,
+    the MCP provider) executes the actual search server-side and injects the
+    results inline, so this is still a single request - no local loop."""
+    if mcp_token is None:
+        return client.messages.create(**kwargs)
+    mcp_server = {
+        "type": "url",
+        "url": settings.mcp_server_url,
+        "name": "knowledge-base",
+        "authorization_token": mcp_token,
+        "tool_configuration": {"allowed_tools": board_conductor.MCP_READ_ONLY_TOOLS},
+    }
+    return client.beta.messages.create(betas=[board_conductor.MCP_BETA], mcp_servers=[mcp_server], **kwargs)
+
+
+def _call_subagent(
+    client: anthropic.Anthropic, mcp_token: str | None, system: str, user_content: str,
+    tool_schema: dict, tool_name: str, max_tokens: int,
+) -> dict:
+    """One subagent turn that can search the knowledge base and the web
+    before settling on its answer. tool_choice is "auto" rather than forced
+    so the model actually gets the chance to search first and still call
+    `tool_name` last in the same response; if it settles for plain text
+    instead (ignoring the system prompt), one more forced call turns
+    whatever it already found into the required structured answer."""
+    kwargs = {
+        "model": settings.ai_model,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [{"role": "user", "content": user_content}],
+        "tools": [tool_schema, board_conductor.WEB_SEARCH_TOOL],
+        "tool_choice": {"type": "auto"},
+    }
+    response = _create_with_search(client, mcp_token, kwargs)
+    result = _tool_use_input(response, tool_name)
+    if result is not None:
+        return result
+
+    forced_kwargs = {
+        "model": settings.ai_model,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [
+            {"role": "user", "content": user_content},
+            {"role": "assistant", "content": [b.model_dump(mode="json") for b in response.content]},
+            {"role": "user", "content": "Зафиксируй вывод вызовом инструмента — без этого твой ответ не будет учтён."},
+        ],
+        "tools": [tool_schema],
+        "tool_choice": {"type": "tool", "name": tool_name},
+    }
+    forced_response = _create_with_search(client, mcp_token, forced_kwargs)
+    return _tool_use_input(forced_response, tool_name) or {}
+
+
 # ------------------------------------------------------------------ stage 1 --
 
 def _collect_opinions(
-    client: anthropic.Anthropic, node_ctx: dict, user_message: str, history_note: str | None, context: dict
+    db: Session, client: anthropic.Anthropic, node_ctx: dict, user_message: str, history_note: str | None,
+    context: dict,
 ) -> list[dict]:
     payload = {"node": node_ctx, "request": user_message, "production_snapshot": context["production"]}
     if context.get("research_brief"):
@@ -70,16 +134,15 @@ def _collect_opinions(
         payload["previous_round"] = history_note
     content = json.dumps(payload, ensure_ascii=False, default=str)
 
+    # Fetched once, up front - mcp_auth.get_access_token() touches the DB
+    # session, which the thread pool below can't safely share.
+    mcp_token = mcp_auth.get_access_token(db) if settings.mcp_configured else None
+
     def _one(role_key: str) -> dict:
-        response = client.messages.create(
-            model=settings.ai_model,
-            max_tokens=600,
-            system=prompts.ROLE_PROMPTS[role_key],
-            messages=[{"role": "user", "content": content}],
-            tools=[prompts.opinion_tool_schema()],
-            tool_choice={"type": "tool", "name": prompts.OPINION_TOOL_NAME},
+        result = _call_subagent(
+            client, mcp_token, prompts.ROLE_PROMPTS[role_key], content,
+            prompts.opinion_tool_schema(), prompts.OPINION_TOOL_NAME, max_tokens=2048,
         )
-        result = _tool_use_input(response, prompts.OPINION_TOOL_NAME) or {}
         return {
             "role": role_key,
             "role_label": prompts.ROLE_LABELS[role_key],
@@ -124,7 +187,7 @@ def _run_council(db: Session, client: anthropic.Anthropic, node: BoardNode, user
     # are grounded in current, outside information rather than just the
     # node's own text and the employee's request.
     context = board_conductor.gather_context(client, db, node_ctx, user_message)
-    opinions = _collect_opinions(client, node_ctx, user_message, history_note, context)
+    opinions = _collect_opinions(db, client, node_ctx, user_message, history_note, context)
     conclusion = _synthesize(client, node_ctx, user_message, history_note, opinions, context)
     recommendation = conclusion.get("recommendation")
     if recommendation not in ("change", "no_change"):
