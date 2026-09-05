@@ -250,6 +250,7 @@ def _apply_node_edit(
 def _review_children(client: anthropic.Anthropic, parent: BoardNode, change_note: str) -> dict | None:
     payload = {
         "parent_change": change_note,
+        "parent_level": parent.level,
         "children": [
             {"id": c.id, "title": c.title, "description": c.description, "color": c.color.value}
             for c in parent.children
@@ -316,7 +317,10 @@ def cascade_down(
 def _review_ancestor(client: anthropic.Anthropic, ancestor: BoardNode, siblings: list[BoardNode], change_note: str) -> dict | None:
     payload = {
         "change_note": change_note,
-        "self": {"title": ancestor.title, "description": ancestor.description, "color": ancestor.color.value},
+        "self": {
+            "title": ancestor.title, "level": ancestor.level,
+            "description": ancestor.description, "color": ancestor.color.value,
+        },
         "other_children": [{"id": c.id, "title": c.title, "color": c.color.value} for c in siblings],
     }
     response = client.messages.create(
