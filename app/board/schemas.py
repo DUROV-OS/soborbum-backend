@@ -147,6 +147,73 @@ class BoardProposalOut(BaseModel):
         )
 
 
+class CreateDiscussionRequest(BaseModel):
+    node_id: int | None = None  # None -> обсуждение по компании в целом
+    title: str | None = Field(default=None, max_length=255)
+    message: str | None = Field(default=None, max_length=8000)  # необязательная первая реплика
+
+
+class PostDiscussionMessageRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+    # true -> перед ответом опросить 7 ролей совета (только если обсуждение привязано к ноде)
+    consult_council: bool = False
+
+
+class RenameDiscussionRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+
+
+class BoardDiscussionMessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    role: Literal["user", "assistant"]
+    author_id: int | None
+    content: str
+    council: list[CouncilOpinionOut] | None = None
+    research_brief: str | None = None
+    created_at: datetime
+
+
+class BoardDiscussionOut(BaseModel):
+    id: int
+    node_id: int | None
+    created_by_id: int
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    message_count: int
+
+    @staticmethod
+    def from_model(discussion) -> "BoardDiscussionOut":
+        return BoardDiscussionOut(
+            id=discussion.id,
+            node_id=discussion.node_id,
+            created_by_id=discussion.created_by_id,
+            title=discussion.title,
+            created_at=discussion.created_at,
+            updated_at=discussion.updated_at,
+            message_count=len(discussion.messages),
+        )
+
+
+class BoardDiscussionDetailOut(BoardDiscussionOut):
+    messages: list[BoardDiscussionMessageOut] = []
+
+    @staticmethod
+    def from_model(discussion) -> "BoardDiscussionDetailOut":
+        return BoardDiscussionDetailOut(
+            id=discussion.id,
+            node_id=discussion.node_id,
+            created_by_id=discussion.created_by_id,
+            title=discussion.title,
+            created_at=discussion.created_at,
+            updated_at=discussion.updated_at,
+            message_count=len(discussion.messages),
+            messages=[BoardDiscussionMessageOut.model_validate(m) for m in discussion.messages],
+        )
+
+
 class BoardNodeChangeOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

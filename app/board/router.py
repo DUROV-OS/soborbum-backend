@@ -5,29 +5,37 @@ from sqlalchemy.orm import Session
 
 from app.board import actualize as board_actualize
 from app.board import council as board_council
+from app.board import discussion as board_discussion
 from app.board import service as board_service
-from app.board.models import BoardNodeChange, BoardProposalStatus
+from app.board.models import BoardDiscussion, BoardNodeChange, BoardProposalStatus
 from app.board.schemas import (
     ActualizeResultOut,
     ApplyResultOut,
+    BoardDiscussionDetailOut,
+    BoardDiscussionMessageOut,
+    BoardDiscussionOut,
     BoardNodeChangeOut,
     BoardNodeDetailOut,
     BoardNodeOut,
     BoardNodeUpdate,
     BoardProposalOut,
+    CreateDiscussionRequest,
+    PostDiscussionMessageRequest,
     ProposalDecisionRequest,
     ProposeChangeRequest,
+    RenameDiscussionRequest,
 )
 from app.common.module_access import Module
 from app.core.deps import require_admin, require_module
 from app.db.session import get_db
-from app.users.models import User
+from app.users.models import User, UserRole
 
 app = FastAPI(
     title="Soborbum — Совет директоров",
     description="Дерево стратегических направлений компании: описание, статус критичности по каждой "
-    "ветке, и ИИ-совет из нескольких ролей, который обсуждает и проводит стратегические изменения по дереву.",
-    version="0.2",
+    "ветке, ИИ-совет из нескольких ролей, который обсуждает и проводит стратегические изменения по "
+    "дереву, и свободные обсуждения с советом (чат без правок дерева).",
+    version="0.3",
 )
 
 require_board = require_module(Module.BOARD)
@@ -135,6 +143,91 @@ def cancel_proposal(proposal_id: int, db: Session = Depends(get_db), _: User = D
     proposal = board_service.get_proposal_or_404(db, proposal_id)
     proposal = board_council.cancel_proposal(db, proposal)
     return BoardProposalOut.from_model(proposal, include_transcript=False)
+
+
+# ------------------------------------------------------------- discussions --
+# Free-form chat with the board. Unlike /propose + /proposals, nothing here
+# ever edits the tree - it's just talking. `consult_council=True` on a
+# message additionally polls the same 7 roles for their individual takes.
+
+
+def _discussion_owned_or_admin(discussion: BoardDiscussion, user: User) -> None:
+    if discussion.created_by_id != user.id and user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Изменять обсуждение может только его автор или администратор"
+        )
+
+
+def _default_discussion_title(payload: CreateDiscussionRequest, node) -> str:
+    if payload.title and payload.title.strip():
+        return payload.title.strip()
+    if payload.message and payload.message.strip():
+        snippet = " ".join(payload.message.split())
+        return snippet[:60] + ("…" if len(snippet) > 60 else "")
+    return f"Обсуждение: {node.title}" if node is not None else "Обсуждение с советом директоров"
+
+
+@app.post("/discussions", response_model=BoardDiscussionDetailOut, status_code=status.HTTP_201_CREATED)
+def create_discussion(
+    payload: CreateDiscussionRequest, db: Session = Depends(get_db), user: User = Depends(require_board)
+):
+    node = board_service.get_node_or_404(db, payload.node_id) if payload.node_id is not None else None
+    discussion = board_discussion.create_discussion(db, node, user, _default_discussion_title(payload, node))
+    if payload.message and payload.message.strip():
+        board_discussion.post_message(db, discussion, user, payload.message, consult_council=False)
+        db.refresh(discussion)
+    return BoardDiscussionDetailOut.from_model(discussion)
+
+
+@app.get("/discussions", response_model=list[BoardDiscussionOut])
+def list_discussions(
+    node_id: int | None = None,
+    mine: bool = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_board),
+):
+    discussions = board_discussion.list_discussions(db, node_id, user if mine else None)
+    return [BoardDiscussionOut.from_model(d) for d in discussions]
+
+
+@app.get("/discussions/{discussion_id}", response_model=BoardDiscussionDetailOut)
+def get_discussion(discussion_id: int, db: Session = Depends(get_db), _: User = Depends(require_board)):
+    return BoardDiscussionDetailOut.from_model(board_discussion.get_discussion_or_404(db, discussion_id))
+
+
+@app.post("/discussions/{discussion_id}/messages", response_model=BoardDiscussionMessageOut)
+def post_discussion_message(
+    discussion_id: int,
+    payload: PostDiscussionMessageRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_board),
+):
+    """Adds the employee's message to the thread and returns the board's
+    reply. With `consult_council=true` the 7 council roles are polled first
+    and their opinions are attached to the reply (only for a node-pinned
+    discussion)."""
+    discussion = board_discussion.get_discussion_or_404(db, discussion_id)
+    message = board_discussion.post_message(db, discussion, user, payload.message, payload.consult_council)
+    return BoardDiscussionMessageOut.model_validate(message)
+
+
+@app.patch("/discussions/{discussion_id}", response_model=BoardDiscussionOut)
+def rename_discussion(
+    discussion_id: int,
+    payload: RenameDiscussionRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_board),
+):
+    discussion = board_discussion.get_discussion_or_404(db, discussion_id)
+    _discussion_owned_or_admin(discussion, user)
+    return BoardDiscussionOut.from_model(board_discussion.rename_discussion(db, discussion, payload.title))
+
+
+@app.delete("/discussions/{discussion_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_discussion(discussion_id: int, db: Session = Depends(get_db), user: User = Depends(require_board)):
+    discussion = board_discussion.get_discussion_or_404(db, discussion_id)
+    _discussion_owned_or_admin(discussion, user)
+    board_discussion.delete_discussion(db, discussion)
 
 
 @app.post("/actualize", response_model=ActualizeResultOut)

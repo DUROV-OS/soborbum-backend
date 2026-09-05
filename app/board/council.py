@@ -164,6 +164,16 @@ def _collect_opinions(
         return list(pool.map(_one, prompts.ROLE_PROMPTS.keys()))
 
 
+def gather_role_opinions(
+    db: Session, client: anthropic.Anthropic, node_ctx: dict, question: str, history_note: str | None, context: dict
+) -> list[dict]:
+    """Public entry point for polling the 7 council roles over an arbitrary
+    question about a node, without the proposal/synthesis machinery around
+    it - used by app.board.discussion so a free-form thread can still ask
+    "что думает совет?" and get the same per-role takes."""
+    return _collect_opinions(db, client, node_ctx, question, history_note, context)
+
+
 def _synthesize(
     client: anthropic.Anthropic, node_ctx: dict, user_message: str, history_note: str | None, opinions: list[dict],
     context: dict,

@@ -93,6 +93,64 @@ class BoardProposal(Base):
     requested_by: Mapped["User"] = relationship()  # noqa: F821
 
 
+class BoardDiscussion(Base):
+    """A free-form conversation thread with the "Совет директоров" - the
+    board just talks (answers questions, thinks options through, optionally
+    polls the 7 council roles), it never edits the tree. For actually
+    changing a node the employee still goes through BoardProposal
+    (app.board.council). Optionally pinned to one node; `node_id` is FK'd
+    with ON DELETE SET NULL so a later structural edit that removes the node
+    leaves the discussion (and its history) intact, just unpinned.
+    """
+
+    __tablename__ = "board_discussions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    node_id: Mapped[int | None] = mapped_column(
+        ForeignKey("board_nodes.id", ondelete="SET NULL"), nullable=True
+    )
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Bumped by hand on every new message (see app.board.discussion) so the
+    # list endpoint can order threads by "last activity", not just creation.
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    node: Mapped["BoardNode | None"] = relationship()
+    created_by: Mapped["User"] = relationship()  # noqa: F821
+    messages: Mapped[list["BoardDiscussionMessage"]] = relationship(
+        back_populates="discussion", cascade="all, delete-orphan", order_by="BoardDiscussionMessage.id"
+    )
+
+
+class BoardDiscussionMessage(Base):
+    """One turn in a BoardDiscussion. `role` is "user" or "assistant" (the
+    board's reply). `council` holds the per-role opinions
+    ({"role", "role_label", "opinion", "stance"}) when that assistant turn
+    was asked to poll the full council; `research_brief` holds the
+    knowledge-base/web briefing gathered for it, if any. Both are null on
+    plain turns.
+    """
+
+    __tablename__ = "board_discussion_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    discussion_id: Mapped[int] = mapped_column(
+        ForeignKey("board_discussions.id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(String(16), nullable=False)  # "user" | "assistant"
+    author_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    council: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    research_brief: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    discussion: Mapped["BoardDiscussion"] = relationship(back_populates="messages")
+    author: Mapped["User | None"] = relationship()  # noqa: F821
+
+
 class BoardNodeChange(Base):
     """Audit trail entry for one node touched by a council application, an
     actualize pass, or a manual edit. Deliberately not FK-constrained to
