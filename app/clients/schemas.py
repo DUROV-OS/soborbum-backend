@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
@@ -6,13 +6,18 @@ from app.clients.models import ClientStage, OrderType
 from app.common.files import FileAssetOut
 
 
+class ClientContact(BaseModel):
+    """Один способ связи с клиентом: мессенджер/канал и адрес в нём."""
+
+    messenger: str
+    contact: str
+
+
 class ClientCreate(BaseModel):
     full_name: str
     phone: str
     email: str
-    inn: str
-    passport_number: str
-    birth_date: date
+    contacts: list[ClientContact] = []
 
 
 class ClientProjectUpdate(BaseModel):
@@ -62,9 +67,7 @@ class ClientOut(BaseModel):
     full_name: str
     phone: str
     email: str
-    inn: str
-    passport_number: str
-    birth_date: date
+    contacts: list[ClientContact] = []
 
     order_type: OrderType | None
     wishes_description: str | None

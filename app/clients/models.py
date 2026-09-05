@@ -1,7 +1,7 @@
 import enum
-from datetime import date, datetime
+from datetime import datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, JSON, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -47,9 +47,10 @@ class Client(Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str] = mapped_column(String(32), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
-    inn: Mapped[str] = mapped_column(String(32), nullable=False)
-    passport_number: Mapped[str] = mapped_column(String(64), nullable=False)
-    birth_date: Mapped[date] = mapped_column(Date, nullable=False)
+    # Список способов связи: [{"messenger": "telegram", "contact": "@ivan"}, ...].
+    # Паспорт/ИНН/дата рождения больше не собираются — для работы с клиентом
+    # достаточно знать, где и как с ним связаться.
+    contacts: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
     # --- Project info: appears at DISCUSSION, required before APPROVAL, then locked ---
     order_type: Mapped[OrderType | None] = mapped_column(Enum(OrderType, name="order_type"), nullable=True)

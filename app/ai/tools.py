@@ -92,7 +92,7 @@ def _serialize_client(c: Client) -> dict:
         "full_name": c.full_name,
         "phone": c.phone,
         "email": c.email,
-        "inn": c.inn,
+        "contacts": c.contacts,
         "order_type": c.order_type.value if c.order_type else None,
         "houses_count": c.houses_count,
         "wishes_description": c.wishes_description,

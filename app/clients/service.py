@@ -44,9 +44,7 @@ def create_client(db: Session, payload: ClientCreate) -> Client:
         full_name=payload.full_name,
         phone=payload.phone,
         email=payload.email,
-        inn=payload.inn,
-        passport_number=payload.passport_number,
-        birth_date=payload.birth_date,
+        contacts=[c.model_dump() for c in payload.contacts],
     )
     db.add(client)
     db.flush()
