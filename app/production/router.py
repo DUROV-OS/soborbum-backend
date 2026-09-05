@@ -1,10 +1,13 @@
 from fastapi import Depends, FastAPI
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.common.module_access import Module as AccessModule
 from app.core.deps import require_module
 from app.db.session import get_db
 from app.production import service as production_service
+from app.production.models import Production, ProductionModule
+from app.cycle.models import Cycle
 from app.production.schemas import (
     MaterialRequestCreate,
     MaterialRequestOut,
@@ -15,6 +18,7 @@ from app.production.schemas import (
     ModuleOut,
     ModuleUpdate,
     ProductionOut,
+    ProductionListOut,
 )
 from app.users.models import User
 
@@ -25,6 +29,19 @@ app = FastAPI(
 )
 
 require_production = require_module(AccessModule.PRODUCTION)
+
+
+@app.get("/", response_model=list[ProductionListOut])
+def list_productions(db: Session = Depends(get_db), _: User = Depends(require_production)):
+    # A production grant must not require a cycle grant or reveal a customer's passport/prices.
+    counts = (db.query(ProductionModule.production_id, func.count(ProductionModule.id).label("count"))
+              .group_by(ProductionModule.production_id).subquery())
+    rows = (db.query(Production, Cycle.status, func.coalesce(counts.c.count, 0))
+            .join(Cycle, Cycle.id == Production.cycle_id)
+            .outerjoin(counts, counts.c.production_id == Production.id)
+            .order_by(Production.id.desc()).all())
+    return [ProductionListOut(id=p.id, cycle_id=p.cycle_id, cycle_status=cycle_status,
+                              created_at=p.created_at, module_count=count) for p, cycle_status, count in rows]
 
 
 @app.get("/{production_id}", response_model=ProductionOut)
