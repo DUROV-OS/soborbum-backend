@@ -89,9 +89,10 @@ def _call_subagent(
     """One subagent turn that can search the knowledge base and the web
     before settling on its answer. tool_choice is "auto" rather than forced
     so the model actually gets the chance to search first and still call
-    `tool_name` last in the same response; if it settles for plain text
-    instead (ignoring the system prompt), one more forced call turns
-    whatever it already found into the required structured answer."""
+    `tool_name` last in the same response; if it doesn't (ignores the system
+    prompt, or the turn got cut short), one clean fallback call forces the
+    structured answer - see the comment below for why that fallback can't
+    just replay the first response's content as history."""
     kwargs = {
         "model": settings.ai_model,
         "max_tokens": max_tokens,
@@ -105,20 +106,29 @@ def _call_subagent(
     if result is not None:
         return result
 
-    forced_kwargs = {
-        "model": settings.ai_model,
-        "max_tokens": max_tokens,
-        "system": system,
-        "messages": [
-            {"role": "user", "content": user_content},
-            {"role": "assistant", "content": [b.model_dump(mode="json") for b in response.content]},
-            {"role": "user", "content": "Зафиксируй вывод вызовом инструмента — без этого твой ответ не будет учтён."},
-        ],
-        "tools": [tool_schema],
-        "tool_choice": {"type": "tool", "name": tool_name},
-    }
-    forced_response = _create_with_search(client, mcp_token, forced_kwargs)
-    return _tool_use_input(forced_response, tool_name) or {}
+    # The model didn't call `tool_name` on its own (truncated by max_tokens,
+    # paused mid a long-running search turn, or it just answered in text).
+    # response.content can't be safely replayed as history in any of these
+    # cases - a server-executed mcp_tool_use/server_tool_use block may be
+    # dangling with no paired result block yet, which the API rejects
+    # outright if resent. So don't continue the turn: carry forward only
+    # whatever plain text the model already wrote (if any) and force the
+    # structured answer from a clean, single-turn request instead.
+    already_written = "".join(getattr(b, "text", "") for b in response.content if getattr(b, "type", None) == "text").strip()
+    fallback_user_content = user_content
+    if already_written:
+        fallback_user_content += (
+            "\n\nЧерновые заметки по итогам предыдущего исследования (могут быть неполными):\n" + already_written
+        )
+    fallback_response = client.messages.create(
+        model=settings.ai_model,
+        max_tokens=max_tokens,
+        system=system,
+        messages=[{"role": "user", "content": fallback_user_content}],
+        tools=[tool_schema],
+        tool_choice={"type": "tool", "name": tool_name},
+    )
+    return _tool_use_input(fallback_response, tool_name) or {}
 
 
 # ------------------------------------------------------------------ stage 1 --

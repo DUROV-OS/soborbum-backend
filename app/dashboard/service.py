@@ -14,6 +14,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.ai import cache as ai_cache
 from app.clients.models import Client, ClientStage
 from app.common.module_access import Module
 from app.core.config import settings
@@ -298,14 +299,21 @@ def _get_client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
 
-def generate_widgets(db: Session, user: User) -> TodayDashboardOut:
+def generate_widgets(db: Session, user: User, force: bool = False) -> TodayDashboardOut:
+    cache_key = f"today_dashboard:{user.id}"
+    cached = ai_cache.get(db, cache_key, force)
+    if cached is not None:
+        return TodayDashboardOut(**cached)
+
     snapshot = build_snapshot(db, user)
     if not snapshot:
-        return TodayDashboardOut(
+        result = TodayDashboardOut(
             generated_at=datetime.now(timezone.utc),
             summary="Нет ни одного раздела с доступом для сводки.",
             widgets=[],
         )
+        ai_cache.set(db, cache_key, result.model_dump(mode="json"), result.generated_at)
+        return result
 
     client = _get_client()
     response = client.messages.create(
@@ -346,8 +354,10 @@ def generate_widgets(db: Session, user: User) -> TodayDashboardOut:
             )
         )
 
-    return TodayDashboardOut(
+    result = TodayDashboardOut(
         generated_at=datetime.now(timezone.utc),
         summary=payload.get("summary", ""),
         widgets=widgets,
     )
+    ai_cache.set(db, cache_key, result.model_dump(mode="json"), result.generated_at)
+    return result

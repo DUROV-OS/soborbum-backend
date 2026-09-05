@@ -1,9 +1,10 @@
 """TTL cache for AI-generated answers that are expensive to recompute but
-cheap to reuse for a while - section analytics and task priorities today
-(app/ai/analytics.py, app/ai/priorities.py). Each GET recomputes via Claude
-only if the cached entry is missing, stale, or the caller passed
-`reload=true` (wired through from the frontend's "перезагрузка" button);
-otherwise it's served straight from ai_cache_entries.
+cheap to reuse for a while - section analytics, task priorities and the
+"Сегодня" dashboard today (app/ai/analytics.py, app/ai/priorities.py,
+app/dashboard/service.py). Each GET recomputes via Claude only if the
+cached entry is missing, stale, or the caller passed `reload=true` (wired
+through from the frontend's "Обновить" button); otherwise it's served
+straight from ai_cache_entries.
 
 Not for chat turns - those are already conversation history, not a cacheable
 snapshot answer.

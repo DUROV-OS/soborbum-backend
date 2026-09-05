@@ -85,13 +85,14 @@ class PendingAction(Base):
 
 class AiCacheEntry(Base):
     """Generic TTL cache for AI-generated answers that aren't a chat turn -
-    section analytics (app/ai/analytics.py) and task priorities
-    (app/ai/priorities.py) today. `key` identifies what was asked (e.g.
-    "section_analytics:clients", "task_priorities:42"); `generated_at` is
-    checked against app.ai.cache.CACHE_TTL to decide whether to serve this
-    row or call Claude again - see app/ai/cache.py for the read/write
-    helpers every producer goes through instead of touching this table
-    directly."""
+    section analytics (app/ai/analytics.py), task priorities
+    (app/ai/priorities.py) and the "Сегодня" dashboard
+    (app/dashboard/service.py) today. `key` identifies what was asked (e.g.
+    "section_analytics:clients", "task_priorities:42", "today_dashboard:42");
+    `generated_at` is checked against app.ai.cache.CACHE_TTL to decide
+    whether to serve this row or call Claude again - see app/ai/cache.py for
+    the read/write helpers every producer goes through instead of touching
+    this table directly."""
 
     __tablename__ = "ai_cache_entries"
 

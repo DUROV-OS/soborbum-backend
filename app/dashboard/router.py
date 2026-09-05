@@ -20,5 +20,5 @@ require_ai = require_module(Module.AI)
 
 
 @app.get("/today", response_model=TodayDashboardOut)
-def get_today(db: Session = Depends(get_db), user: User = Depends(require_ai)):
-    return dashboard_service.generate_widgets(db, user)
+def get_today(reload: bool = False, db: Session = Depends(get_db), user: User = Depends(require_ai)):
+    return dashboard_service.generate_widgets(db, user, force=reload)
