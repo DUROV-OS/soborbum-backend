@@ -15,6 +15,11 @@ class BoardNodeOut(BaseModel):
     sort_order: int
     title: str
     description: str
+    # 2-3 paragraph AI condensation of `description` (500+ words - see
+    # app.board.prompts._SCOPE_DISCIPLINE) - what the frontend should display
+    # instead of the full text. None only for a node whose description
+    # predates this field and hasn't been touched by an AI edit since.
+    summary: str | None
     color: BoardNodeColor
     created_at: datetime
     updated_at: datetime
@@ -29,6 +34,7 @@ class BoardNodeOut(BaseModel):
             sort_order=node.sort_order,
             title=node.title,
             description=node.description,
+            summary=node.summary,
             color=node.color,
             created_at=node.created_at,
             updated_at=node.updated_at,
@@ -58,6 +64,7 @@ class BoardNodeDetailOut(BoardNodeOut):
             sort_order=node.sort_order,
             title=node.title,
             description=node.description,
+            summary=node.summary,
             color=node.color,
             created_at=node.created_at,
             updated_at=node.updated_at,

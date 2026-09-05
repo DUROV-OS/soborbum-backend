@@ -31,25 +31,35 @@ _CONTEXT_FIELDS_NOTE = (
     "пустые — просто игнорируй.\n\n"
 )
 
-# Guards against two recurring failure modes: nodes ending up as
-# near-duplicate one-liners of their neighbours, and a minor, routine change
-# at the bottom of the tree getting rewritten into a big deal three levels
-# up. Threaded into every prompt that actually writes a node's description or
-# color (synthesis, editor, cascade, ancestor, actualize) - not the per-role
+# Guards against three recurring failure modes: descriptions ending up too
+# thin to be a real source of truth, nodes ending up as near-duplicate
+# one-liners of their neighbours, and a minor, routine change at the bottom
+# of the tree getting rewritten into a big deal three levels up. Threaded
+# into every prompt that actually writes a node's description or color
+# (synthesis, editor, cascade, ancestor, actualize) - not the per-role
 # opinions or the conductor's research summary, which don't write nodes.
 _SCOPE_DISCIPLINE = (
-    "Уровни дерева различаются масштабом и степенью детализации, и это должно быть видно по тексту:\n"
-    "- Уровень 2 (поднаправление) — самый подробный уровень: содержательный абзац по существу именно "
-    "этого поднаправления, а не одна общая фраза.\n"
+    "Независимо от уровня, итоговый текст описания (new_description) должен быть развёрнутым: НЕ КОРОЧЕ "
+    "500 слов. Это не витринный текст для показа сотруднику, а фактическая база, на которую опираются "
+    "совет директоров и агент-дирижёр в следующих обсуждениях, — короткие, обтекаемые формулировки "
+    "здесь неприемлемы ни на одном уровне, включая уровень 0. Отдельно, вместе с new_description всегда "
+    "заполняй summary — сжатую выжимку в 2-3 абзаца по-русски для показа на фронтенде (см. описание "
+    "поля summary в схеме инструмента).\n\n"
+    "При этом уровни дерева различаются МАСШТАБОМ ОТДЕЛЬНОЙ ПРАВКИ внутри этого развёрнутого текста, а "
+    "не итоговой длиной — описание остаётся объёмным на всех уровнях, но конкретное изменение вносится "
+    "точечно:\n"
+    "- Уровень 2 (поднаправление) — самый подробный уровень: правка вносится по существу именно того, "
+    "что изменилось в этом поднаправлении, но не обязана быть скромной по объёму.\n"
     "- Уровень 1 (направление бизнеса) — обобщённая картина по направлению в целом, а не сумма описаний "
-    "его поднаправлений. Изменение в одном поднаправлении может сдвинуть описание направления МАКСИМУМ "
-    "на один абзац по объёму — не переписывай его заново целиком и не копируй туда текст поднаправления "
-    "дословно или почти дословно.\n"
-    "- Уровень 0 (вся компания durov.house) — самый сжатый уровень, буквально пара предложений на всю "
-    "компанию. Изменение в одном поднаправлении почти никогда не должно менять этот текст больше, чем на "
-    "пару слов (или не менять вовсе) — существенно переписывай его только если событие действительно "
-    "общекорпоративное (например, направление целиком закрывается или запускается новое), а не потому "
-    "что где-то внизу дерева произошла рядовая правка.\n\n"
+    "его поднаправлений. Изменение в одном поднаправлении может сдвинуть текст направления МАКСИМУМ на "
+    "один абзац внутри его объёмного описания — остальной текст оставляй как есть, не переписывай его "
+    "целиком и не копируй туда текст поднаправления дословно или почти дословно.\n"
+    "- Уровень 0 (вся компания durov.house) — изменение в одном поднаправлении почти никогда не должно "
+    "менять текст компании больше, чем на пару слов внутри его объёмного описания (или не менять вовсе) "
+    "— существенно переписывай его только если событие действительно общекорпоративное (например, "
+    "направление целиком закрывается или запускается новое), а не потому что где-то внизу дерева "
+    "произошла рядовая правка. Итоговый текст всё равно должен оставаться не короче 500 слов — "
+    "сокращать его или заменять коротким резюме нельзя даже при точечной правке.\n\n"
     "Не придавай значимость незначительным изменениям и не дублируй один и тот же текст на разных "
     "уровнях: рутинная правка (мелкое уточнение, локальная проблема, обычное текущее дело) не должна "
     "вызывать переписывание родительских нод, дублирование в них того же текста или смену их цветового "
@@ -58,6 +68,8 @@ _SCOPE_DISCIPLINE = (
     "статус только когда это по-настоящему меняет картину на уровне направления или компании в целом, а "
     "не просто потому что что-то произошло у потомка."
 )
+
+_SUMMARY_FIELD_NOTE = "Сжатая выжимка нового описания в 2-3 абзаца по-русски, для показа на фронтенде вместо полного текста — без канцелярита, по существу текущего положения дел."
 
 # ----------------------------------------------------------------- conductor --
 
@@ -231,9 +243,10 @@ def _structural_property() -> dict:
                     "properties": {
                         "title": {"type": "string"},
                         "description": {"type": "string"},
+                        "summary": {"type": "string", "description": _SUMMARY_FIELD_NOTE},
                         "color": {"type": "string", "enum": [c.value for c in BoardNodeColor]},
                     },
-                    "required": ["title", "description"],
+                    "required": ["title", "description", "summary"],
                 },
             },
             "delete_child_ids": {"type": "array", "items": {"type": "integer"}},
@@ -260,7 +273,11 @@ EDITOR_SYSTEM_PROMPT = _CONTEXT + (
 
 def editor_tool_schema(level: int) -> dict:
     properties = {
-        "new_description": {"type": "string"},
+        "new_description": {
+            "type": "string",
+            "description": "Развёрнутое описание, не короче 500 слов — см. системные правила.",
+        },
+        "summary": {"type": "string", "description": _SUMMARY_FIELD_NOTE},
         "new_color": {"type": "string", "enum": [c.value for c in BoardNodeColor]},
         "new_title": {"type": "string", "description": "Только если требуется переименование, иначе не указывай."},
         "change_summary": {
@@ -276,7 +293,7 @@ def editor_tool_schema(level: int) -> dict:
         "input_schema": {
             "type": "object",
             "properties": properties,
-            "required": ["new_description", "new_color", "change_summary"],
+            "required": ["new_description", "summary", "new_color", "change_summary"],
         },
     }
 
@@ -312,7 +329,11 @@ def cascade_tool_schema() -> dict:
                         "properties": {
                             "child_id": {"type": "integer"},
                             "needs_change": {"type": "boolean"},
-                            "new_description": {"type": "string"},
+                            "new_description": {
+                                "type": "string",
+                                "description": "Развёрнутое описание, не короче 500 слов — см. системные правила.",
+                            },
+                            "summary": {"type": "string", "description": _SUMMARY_FIELD_NOTE},
                             "new_color": {"type": "string", "enum": [c.value for c in BoardNodeColor]},
                             "change_summary": {
                                 "type": "string",
@@ -358,7 +379,11 @@ ANCESTOR_SYSTEM_PROMPT = _CONTEXT + (
 def ancestor_tool_schema(level: int) -> dict:
     properties = {
         "needs_own_change": {"type": "boolean"},
-        "new_description": {"type": "string"},
+        "new_description": {
+            "type": "string",
+            "description": "Развёрнутое описание, не короче 500 слов — см. системные правила.",
+        },
+        "summary": {"type": "string", "description": _SUMMARY_FIELD_NOTE},
         "new_color": {"type": "string", "enum": [c.value for c in BoardNodeColor]},
         "delegate_child_ids": {"type": "array", "items": {"type": "integer"}},
         "change_summary": {
@@ -415,7 +440,11 @@ def actualize_tool_schema() -> dict:
                         "properties": {
                             "node_id": {"type": "integer"},
                             "needs_change": {"type": "boolean"},
-                            "new_description": {"type": "string"},
+                            "new_description": {
+                                "type": "string",
+                                "description": "Развёрнутое описание, не короче 500 слов — см. системные правила.",
+                            },
+                            "summary": {"type": "string", "description": _SUMMARY_FIELD_NOTE},
                             "new_color": {"type": "string", "enum": [c.value for c in BoardNodeColor]},
                             "change_summary": {
                                 "type": "string",

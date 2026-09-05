@@ -47,6 +47,11 @@ class BoardNode(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # A short, 2-3 paragraph AI condensation of `description`, kept in sync by
+    # every AI-driven write to it (see app.board.council/actualize) - served
+    # to the frontend in place of the full text, which is deliberately long
+    # (500+ words, see app.board.prompts._SCOPE_DISCIPLINE).
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     color: Mapped[BoardNodeColor] = mapped_column(
         Enum(BoardNodeColor, name="board_node_color"), nullable=False, default=BoardNodeColor.GREEN
     )

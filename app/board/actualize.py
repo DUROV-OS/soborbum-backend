@@ -70,6 +70,7 @@ def actualize(db: Session, root: BoardNode, actor: User) -> list[BoardNodeChange
         new_description = update.get("new_description")
         if new_description:
             node.description = new_description
+            node.summary = update.get("summary") or node.summary
         new_color = board_service.safe_color(update.get("new_color"))
         if new_color:
             node.color = new_color

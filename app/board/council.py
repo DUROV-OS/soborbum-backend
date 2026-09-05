@@ -228,6 +228,7 @@ def _apply_node_edit(
     new_description = edit.get("new_description")
     if new_description:
         node.description = new_description
+        node.summary = edit.get("summary") or node.summary
     new_color = board_service.safe_color(edit.get("new_color"))
     if new_color:
         node.color = new_color
@@ -288,6 +289,7 @@ def cascade_down(
         new_description = update.get("new_description")
         if new_description:
             child.description = new_description
+            child.summary = update.get("summary") or child.summary
         new_color = board_service.safe_color(update.get("new_color"))
         if new_color:
             child.color = new_color
@@ -352,6 +354,7 @@ def cascade_up(
             new_description = data.get("new_description")
             if new_description:
                 ancestor.description = new_description
+                ancestor.summary = data.get("summary") or ancestor.summary
             new_color = board_service.safe_color(data.get("new_color"))
             if new_color:
                 ancestor.color = new_color

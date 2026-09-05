@@ -126,6 +126,7 @@ def update_node_manual(
         changed = True
     if description is not None and description != node.description:
         node.description = description
+        node.summary = None  # stale now - no AI pass ran to re-condense it
         changed = True
     if color is not None and color != node.color:
         node.color = color
@@ -193,6 +194,7 @@ def apply_structural_ops(
             sort_order=max_sort + 1 + i,
             title=str(spec["title"]).strip()[:255],
             description=str(spec.get("description") or ""),
+            summary=spec.get("summary"),
             color=safe_color(spec.get("color")) or BoardNodeColor.GREEN,
         )
         db.add(new_node)
