@@ -1,7 +1,7 @@
 import enum
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -13,6 +13,15 @@ class ClientStage(str, enum.Enum):
     APPROVAL = "approval"
     PAYMENT = "payment"
     POSTPAYMENT = "postpayment"
+
+
+class OrderType(str, enum.Enum):
+    """Одиночный заказ — один дом в производстве. Множественный — несколько
+    домов у одного клиента, под каждый на стадии производства заводится
+    отдельный проект (app.production.models.Production)."""
+
+    SINGLE = "single"
+    MULTIPLE = "multiple"
 
 
 CLIENT_STAGE_ORDER = [
@@ -43,6 +52,7 @@ class Client(Base):
     birth_date: Mapped[date] = mapped_column(Date, nullable=False)
 
     # --- Project info: appears at DISCUSSION, required before APPROVAL, then locked ---
+    order_type: Mapped[OrderType | None] = mapped_column(Enum(OrderType, name="order_type"), nullable=True)
     wishes_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     estimated_price: Mapped[float | None] = mapped_column(Numeric(14, 2, asdecimal=False), nullable=True)
     house_area: Mapped[float | None] = mapped_column(Numeric(10, 2, asdecimal=False), nullable=True)
@@ -50,6 +60,9 @@ class Client(Base):
     project_locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # --- Documents info: appears at APPROVAL, required before PAYMENT, then locked ---
+    # houses_count is meaningful only for a MULTIPLE order; a SINGLE order is
+    # forced to 1. It fixes how many Production projects are spun up on POSTPAYMENT.
+    houses_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     final_price: Mapped[float | None] = mapped_column(Numeric(14, 2, asdecimal=False), nullable=True)
     installation_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     contract_file_id: Mapped[int | None] = mapped_column(ForeignKey("file_assets.id"), nullable=True)

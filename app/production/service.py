@@ -11,6 +11,13 @@ from app.warehouse import service as warehouse_service
 from app.warehouse.models import StockMovementReason, WarehouseMaterial
 
 
+def list_productions(db: Session, cycle_id: int | None = None) -> list[Production]:
+    query = db.query(Production)
+    if cycle_id is not None:
+        query = query.filter(Production.cycle_id == cycle_id)
+    return query.order_by(Production.cycle_id.desc(), Production.house_index.asc()).all()
+
+
 def get_production_or_404(db: Session, production_id: int) -> Production:
     production = db.get(Production, production_id)
     if not production:

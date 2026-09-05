@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.clients.models import CLIENT_STAGE_ORDER, Client, ClientNote, ClientStage
+from app.clients.models import CLIENT_STAGE_ORDER, Client, ClientNote, ClientStage, OrderType
 from app.clients.schemas import ClientCreate, ClientDocumentsUpdate, ClientPaymentUpdate, ClientProjectUpdate
 from app.common.module_access import Module
 from app.cycle.models import Cycle, CycleStatus
@@ -74,7 +74,17 @@ def update_project(db: Session, client: Client, payload: ClientProjectUpdate) ->
 def update_documents(db: Session, client: Client, payload: ClientDocumentsUpdate) -> Client:
     if client.documents_locked_at is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Документные данные уже зафиксированы")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if "houses_count" in data and data["houses_count"] is not None:
+        count = data["houses_count"]
+        if count < 1:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Количество домов не может быть меньше 1")
+        if client.order_type != OrderType.MULTIPLE and count != 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Количество домов > 1 доступно только для множественного заказа",
+            )
+    for field, value in data.items():
         setattr(client, field, value)
     db.flush()
     return client
@@ -122,7 +132,7 @@ def delete_note(db: Session, note: ClientNote) -> None:
     db.flush()
 
 
-_PROJECT_REQUIRED = ["wishes_description", "estimated_price", "house_area", "layout_notes"]
+_PROJECT_REQUIRED = ["order_type", "wishes_description", "estimated_price", "house_area", "layout_notes"]
 _DOCUMENTS_REQUIRED = ["final_price", "installation_address", "contract_file_id", "house_project_file_id"]
 
 
@@ -147,6 +157,13 @@ def transition_stage(db: Session, client: Client) -> Client:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Не заполнены документные поля: {', '.join(missing)}",
             )
+        if client.order_type == OrderType.SINGLE:
+            client.houses_count = 1
+        elif client.order_type == OrderType.MULTIPLE and client.houses_count < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Для множественного заказа укажите количество домов (не меньше 2)",
+            )
         client.documents_locked_at = datetime.now(timezone.utc)
 
     elif client.stage == ClientStage.PAYMENT:
@@ -160,8 +177,15 @@ def transition_stage(db: Session, client: Client) -> Client:
     if next_stage == ClientStage.POSTPAYMENT:
         from app.production.models import Production
 
-        production = Production(cycle_id=client.cycle_id)
-        db.add(production)
+        houses = client.houses_count if client.order_type == OrderType.MULTIPLE else 1
+        for i in range(1, houses + 1):
+            db.add(
+                Production(
+                    cycle_id=client.cycle_id,
+                    house_index=i,
+                    name=f"Дом {i}" if houses > 1 else "Дом",
+                )
+            )
         client.cycle.status = CycleStatus.PRODUCTION
         db.flush()
 

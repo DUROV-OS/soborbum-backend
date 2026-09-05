@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.clients.models import ClientStage
+from app.clients.models import ClientStage, OrderType
 from app.common.files import FileAssetOut
 
 
@@ -16,6 +16,7 @@ class ClientCreate(BaseModel):
 
 
 class ClientProjectUpdate(BaseModel):
+    order_type: OrderType | None = None
     wishes_description: str | None = None
     estimated_price: float | None = None
     house_area: float | None = None
@@ -25,6 +26,7 @@ class ClientProjectUpdate(BaseModel):
 class ClientDocumentsUpdate(BaseModel):
     final_price: float | None = None
     installation_address: str | None = None
+    houses_count: int | None = None
 
 
 class ClientPaymentUpdate(BaseModel):
@@ -64,12 +66,14 @@ class ClientOut(BaseModel):
     passport_number: str
     birth_date: date
 
+    order_type: OrderType | None
     wishes_description: str | None
     estimated_price: float | None
     house_area: float | None
     layout_notes: str | None
     project_locked_at: datetime | None
 
+    houses_count: int
     final_price: float | None
     installation_address: str | None
     contract_file: FileAssetOut | None

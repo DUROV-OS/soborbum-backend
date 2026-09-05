@@ -12,5 +12,8 @@ class CycleOut(BaseModel):
     id: int
     status: CycleStatus
     client: ClientOut | None
+    # productions holds one project per дом (множественный заказ); `production`
+    # stays for backwards compatibility and points at the first дом.
+    productions: list[ProductionOut] = []
     production: ProductionOut | None
     installation: InstallationOut | None

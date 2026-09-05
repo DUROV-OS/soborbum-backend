@@ -21,10 +21,20 @@ from app.users.models import User
 app = FastAPI(
     title="Soborbum — Производство",
     description="Модули дома, их задачи и необходимые материалы, запросы материалов со склада.",
-    version="0.1.1",
+    version="0.2.0",
 )
 
 require_production = require_module(AccessModule.PRODUCTION)
+
+
+@app.get("/", response_model=list[ProductionOut])
+def list_productions(
+    cycle_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_production),
+):
+    """Проекты производства. С ?cycle_id= — все дома одного цикла по порядку."""
+    return production_service.list_productions(db, cycle_id)
 
 
 @app.get("/{production_id}", response_model=ProductionOut)

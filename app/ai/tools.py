@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.models import ChatDomain
 from app.clients import service as client_service
-from app.clients.models import Client, ClientStage
+from app.clients.models import Client, ClientStage, OrderType
 from app.clients.schemas import ClientDocumentsUpdate, ClientPaymentUpdate, ClientProjectUpdate
 from app.common.files import FilePurpose, save_text_file
 from app.common.module_access import Module
@@ -93,6 +93,8 @@ def _serialize_client(c: Client) -> dict:
         "phone": c.phone,
         "email": c.email,
         "inn": c.inn,
+        "order_type": c.order_type.value if c.order_type else None,
+        "houses_count": c.houses_count,
         "wishes_description": c.wishes_description,
         "estimated_price": c.estimated_price,
         "house_area": c.house_area,
@@ -172,6 +174,7 @@ def _attach_generated_document(
     "update_client_project", "Заполнить/изменить проектные данные клиента (пока не зафиксированы).",
     {
         "client_id": {"type": "integer"},
+        "order_type": {"type": "string", "enum": [t.value for t in OrderType]},
         "wishes_description": {"type": "string"},
         "estimated_price": {"type": "number"},
         "house_area": {"type": "number"},
@@ -193,6 +196,7 @@ def _update_client_project(db: Session, user: User, client_id: int, **fields) ->
         "client_id": {"type": "integer"},
         "final_price": {"type": "number"},
         "installation_address": {"type": "string"},
+        "houses_count": {"type": "integer"},
     },
     ["client_id"],
     required_module=Module.CLIENTS, domains=[ChatDomain.CLIENTS],
@@ -376,10 +380,15 @@ def _get_cycle(db: Session, user: User, cycle_id: int) -> dict:
         "id": cycle.id,
         "status": cycle.status.value,
         "client": _serialize_client(cycle.client) if cycle.client else None,
-        "production": {
-            "id": cycle.production.id,
-            "modules": [_serialize_module(m) for m in cycle.production.modules],
-        } if cycle.production else None,
+        "productions": [
+            {
+                "id": p.id,
+                "house_index": p.house_index,
+                "name": p.name,
+                "modules": [_serialize_module(m) for m in p.modules],
+            }
+            for p in cycle.productions
+        ],
         "installation": {
             "id": cycle.installation.id,
             "stage": cycle.installation.stage.value,
