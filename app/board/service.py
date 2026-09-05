@@ -60,6 +60,18 @@ def node_path(node: BoardNode) -> list[BoardNode]:
     return path
 
 
+def node_context(node: BoardNode) -> dict:
+    return {
+        "id": node.id,
+        "title": node.title,
+        "level": node.level,
+        "description": node.description,
+        "color": node.color.value,
+        "path": [{"title": a.title, "level": a.level} for a in node_path(node)],
+        "children": [{"id": c.id, "title": c.title, "color": c.color.value} for c in node.children],
+    }
+
+
 def flatten(node: BoardNode) -> list[BoardNode]:
     nodes = [node]
     for child in node.children:

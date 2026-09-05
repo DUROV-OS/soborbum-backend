@@ -97,6 +97,8 @@ class ProposalRoundOut(BaseModel):
     proposed_color: BoardNodeColor | None
     decision: Literal["pending", "accepted", "rejected"]
     council: list[CouncilOpinionOut] = []
+    production_snapshot: dict | None = None
+    research_brief: str | None = None
 
 
 class BoardProposalOut(BaseModel):
@@ -123,6 +125,8 @@ class BoardProposalOut(BaseModel):
                     proposed_color=r.get("proposed_color"),
                     decision=r.get("decision", "pending"),
                     council=council,
+                    production_snapshot=r.get("production_snapshot"),
+                    research_brief=r.get("research_brief"),
                 )
             )
         return BoardProposalOut(

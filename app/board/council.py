@@ -1,9 +1,11 @@
 """The AI council that drives "внести изменения" in the "Совет директоров"
 section, end to end:
 
-1. propose_change() gathers one opinion per role (7 council members, run
-   concurrently) and synthesizes them into one conclusion - stored as the
-   first "round" on a BoardProposal.
+1. propose_change() first runs the "дирижёр" (app.board.conductor): a
+   production-system snapshot plus a knowledge-base/web research briefing,
+   gathered before anyone has an opinion - then gathers one opinion per role
+   (7 council members, run concurrently) and synthesizes them into one
+   conclusion - stored as the first "round" on a BoardProposal.
 2. The conclusion (and, on request, the full transcript) is handed back to
    the caller (app.board.router) to show the employee.
 3. add_round() re-runs the council with the employee's rejection comment as
@@ -25,6 +27,7 @@ import anthropic
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.board import conductor as board_conductor
 from app.board import prompts
 from app.board import service as board_service
 from app.board.models import (
@@ -55,22 +58,14 @@ def _tool_use_input(response, tool_name: str) -> dict | None:
     return block.input if block else None
 
 
-def _node_context(node: BoardNode) -> dict:
-    return {
-        "id": node.id,
-        "title": node.title,
-        "level": node.level,
-        "description": node.description,
-        "color": node.color.value,
-        "path": [{"title": a.title, "level": a.level} for a in board_service.node_path(node)],
-        "children": [{"id": c.id, "title": c.title, "color": c.color.value} for c in node.children],
-    }
-
-
 # ------------------------------------------------------------------ stage 1 --
 
-def _collect_opinions(client: anthropic.Anthropic, node_ctx: dict, user_message: str, history_note: str | None) -> list[dict]:
-    payload = {"node": node_ctx, "request": user_message}
+def _collect_opinions(
+    client: anthropic.Anthropic, node_ctx: dict, user_message: str, history_note: str | None, context: dict
+) -> list[dict]:
+    payload = {"node": node_ctx, "request": user_message, "production_snapshot": context["production"]}
+    if context.get("research_brief"):
+        payload["research_brief"] = context["research_brief"]
     if history_note:
         payload["previous_round"] = history_note
     content = json.dumps(payload, ensure_ascii=False, default=str)
@@ -96,8 +91,16 @@ def _collect_opinions(client: anthropic.Anthropic, node_ctx: dict, user_message:
         return list(pool.map(_one, prompts.ROLE_PROMPTS.keys()))
 
 
-def _synthesize(client: anthropic.Anthropic, node_ctx: dict, user_message: str, history_note: str | None, opinions: list[dict]) -> dict:
-    payload = {"node": node_ctx, "request": user_message, "council_opinions": opinions}
+def _synthesize(
+    client: anthropic.Anthropic, node_ctx: dict, user_message: str, history_note: str | None, opinions: list[dict],
+    context: dict,
+) -> dict:
+    payload = {
+        "node": node_ctx, "request": user_message, "council_opinions": opinions,
+        "production_snapshot": context["production"],
+    }
+    if context.get("research_brief"):
+        payload["research_brief"] = context["research_brief"]
     if history_note:
         payload["previous_round"] = history_note
     response = client.messages.create(
@@ -114,10 +117,15 @@ def _synthesize(client: anthropic.Anthropic, node_ctx: dict, user_message: str, 
     return result
 
 
-def _run_council(client: anthropic.Anthropic, node: BoardNode, user_message: str, history_note: str | None) -> dict:
-    node_ctx = _node_context(node)
-    opinions = _collect_opinions(client, node_ctx, user_message, history_note)
-    conclusion = _synthesize(client, node_ctx, user_message, history_note, opinions)
+def _run_council(db: Session, client: anthropic.Anthropic, node: BoardNode, user_message: str, history_note: str | None) -> dict:
+    node_ctx = board_service.node_context(node)
+    # The conductor gathers production data and a knowledge-base/web research
+    # briefing before the council opinions and synthesis are drafted, so both
+    # are grounded in current, outside information rather than just the
+    # node's own text and the employee's request.
+    context = board_conductor.gather_context(client, db, node_ctx, user_message)
+    opinions = _collect_opinions(client, node_ctx, user_message, history_note, context)
+    conclusion = _synthesize(client, node_ctx, user_message, history_note, opinions, context)
     recommendation = conclusion.get("recommendation")
     if recommendation not in ("change", "no_change"):
         recommendation = "no_change"
@@ -131,12 +139,14 @@ def _run_council(client: anthropic.Anthropic, node: BoardNode, user_message: str
         "proposed_description": conclusion.get("proposed_description") or None,
         "proposed_color": proposed_color.value if proposed_color else None,
         "decision": "pending",
+        "production_snapshot": context["production"],
+        "research_brief": context.get("research_brief"),
     }
 
 
 def propose_change(db: Session, node: BoardNode, user: User, message: str) -> BoardProposal:
     client = _get_client()
-    round_data = _run_council(client, node, message, history_note=None)
+    round_data = _run_council(db, client, node, message, history_note=None)
     proposal = BoardProposal(node_id=node.id, requested_by_id=user.id, rounds=[round_data])
     db.add(proposal)
     db.commit()
@@ -165,7 +175,7 @@ def add_round(db: Session, proposal: BoardProposal, comment: str) -> BoardPropos
     )
 
     client = _get_client()
-    round_data = _run_council(client, proposal.node, comment.strip(), history_note)
+    round_data = _run_council(db, client, proposal.node, comment.strip(), history_note)
     rounds.append(round_data)
 
     proposal.rounds = rounds
@@ -189,7 +199,7 @@ def cancel_proposal(db: Session, proposal: BoardProposal) -> BoardProposal:
 
 def _decide_node_edit(client: anthropic.Anthropic, node: BoardNode, round_data: dict) -> dict:
     payload = {
-        "node": _node_context(node),
+        "node": board_service.node_context(node),
         "council_summary": round_data.get("summary"),
         "council_recommendation": round_data.get("recommendation"),
         "council_proposed_description": round_data.get("proposed_description"),
