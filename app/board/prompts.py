@@ -195,7 +195,8 @@ EDITOR_SYSTEM_PROMPT = _CONTEXT + (
     "внести. Тебе передан итоговый вывод совета и текущее состояние ноды. Примени решение: перепиши "
     "описание ноды по существу (сформулируй его как актуальное описание положения дел в этом "
     "направлении, а не как пересказ вывода совета) и выставь цветовой статус критичности.\n\n"
-    + _STRUCTURAL_RULES + "\n\n" + _NO_INVENT + " Отвечай ТОЛЬКО вызовом инструмента submit_node_edit."
+    + _STRUCTURAL_RULES + "\n\n" + _NO_INVENT + " Дополнительно заполни change_summary — одно предложение "
+    "по-русски о том, что конкретно меняется в этой ноде. Отвечай ТОЛЬКО вызовом инструмента submit_node_edit."
 )
 
 
@@ -204,13 +205,21 @@ def editor_tool_schema(level: int) -> dict:
         "new_description": {"type": "string"},
         "new_color": {"type": "string", "enum": [c.value for c in BoardNodeColor]},
         "new_title": {"type": "string", "description": "Только если требуется переименование, иначе не указывай."},
+        "change_summary": {
+            "type": "string",
+            "description": "Одно предложение по-русски: что конкретно меняется в этой ноде.",
+        },
     }
     if level in (0, 1):
         properties["structural_changes"] = _structural_property()
     return {
         "name": EDITOR_TOOL_NAME,
         "description": "Применить решение совета директоров к ноде.",
-        "input_schema": {"type": "object", "properties": properties, "required": ["new_description", "new_color"]},
+        "input_schema": {
+            "type": "object",
+            "properties": properties,
+            "required": ["new_description", "new_color", "change_summary"],
+        },
     }
 
 
@@ -222,7 +231,9 @@ CASCADE_SYSTEM_PROMPT = _CONTEXT + (
     "Одна из нод дерева только что изменилась. Тебе передано, что изменилось в родительской ноде, и "
     "список её прямых дочерних нод. Для каждой дочерней ноды реши, требует ли она правки в свете этого "
     "изменения — обновляй описание и статус ТОЛЬКО тех дочерних нод, которых изменение родителя реально "
-    "касается по существу; для остальных верни needs_change=false и не трогай их поля.\n\n"
+    "касается по существу; для остальных верни needs_change=false и не трогай их поля. Для каждой ноды с "
+    "needs_change=true заполни change_summary — одно предложение по-русски о том, что конкретно в ней "
+    "меняется.\n\n"
     + _STRUCTURAL_RULES + "\n\n" + _NO_INVENT + " Отвечай ТОЛЬКО вызовом инструмента submit_children_review."
 )
 
@@ -243,6 +254,10 @@ def cascade_tool_schema() -> dict:
                             "needs_change": {"type": "boolean"},
                             "new_description": {"type": "string"},
                             "new_color": {"type": "string", "enum": [c.value for c in BoardNodeColor]},
+                            "change_summary": {
+                                "type": "string",
+                                "description": "Одно предложение по-русски: что конкретно меняется в этой ноде.",
+                            },
                         },
                         "required": ["child_id", "needs_change"],
                     },
@@ -266,6 +281,8 @@ ANCESTOR_SYSTEM_PROMPT = _CONTEXT + (
     "(2) delegate_child_ids — стоит ли поручить пересмотр кому-то из ДРУГИХ твоих дочерних нод (не той, "
     "что уже изменилась); это редкий случай, когда изменение затрагивает не только исходную ветку, а и "
     "соседние направления.\n\n"
+    "Если needs_own_change=true, заполни change_summary — одно предложение по-русски о том, что конкретно "
+    "меняется в этой ноде.\n\n"
     + _STRUCTURAL_RULES + "\n\n" + _NO_INVENT + " Отвечай ТОЛЬКО вызовом инструмента submit_ancestor_review."
 )
 
@@ -276,6 +293,10 @@ def ancestor_tool_schema(level: int) -> dict:
         "new_description": {"type": "string"},
         "new_color": {"type": "string", "enum": [c.value for c in BoardNodeColor]},
         "delegate_child_ids": {"type": "array", "items": {"type": "integer"}},
+        "change_summary": {
+            "type": "string",
+            "description": "Одно предложение по-русски: что конкретно меняется в этой ноде.",
+        },
     }
     if level in (0, 1):
         properties["structural_changes"] = _structural_property()
@@ -299,6 +320,8 @@ ACTUALIZE_SYSTEM_PROMPT = _CONTEXT + (
     "Правила:\n"
     "- Обновляй ТОЛЬКО те ноды, по которым операционные данные дают конкретное основание для правки — "
     "needs_change=false для большинства нод, если по ним всё спокойно и ничего не разошлось.\n"
+    "- Для каждой ноды с needs_change=true заполни change_summary — одно предложение по-русски о том, что "
+    "конкретно в ней меняется.\n"
     "- " + _NO_INVENT + "\n"
     "- Это обновление содержания, а НЕ структуры дерева: здесь нельзя создавать или удалять ноды.\n"
     "- Отвечай ТОЛЬКО вызовом инструмента submit_actualization."
@@ -321,6 +344,10 @@ def actualize_tool_schema() -> dict:
                             "needs_change": {"type": "boolean"},
                             "new_description": {"type": "string"},
                             "new_color": {"type": "string", "enum": [c.value for c in BoardNodeColor]},
+                            "change_summary": {
+                                "type": "string",
+                                "description": "Одно предложение по-русски: что конкретно меняется в этой ноде.",
+                            },
                         },
                         "required": ["node_id", "needs_change"],
                     },

@@ -229,7 +229,7 @@ def _apply_node_edit(
         board_service.log_change(
             db, node, BoardChangeType.UPDATED, source, proposal_id, actor,
             old_description=old_description, new_description=node.description,
-            old_color=old_color, new_color=node.color.value,
+            old_color=old_color, new_color=node.color.value, note=edit.get("change_summary"),
         )
     )
     structural = edit.get("structural_changes")
@@ -285,7 +285,7 @@ def cascade_down(
             board_service.log_change(
                 db, child, BoardChangeType.UPDATED, source, proposal_id, actor,
                 old_description=old_description, new_description=child.description,
-                old_color=old_color, new_color=child.color.value,
+                old_color=old_color, new_color=child.color.value, note=update.get("change_summary"),
             )
         )
         changed_ids.append(child.id)
@@ -346,7 +346,7 @@ def cascade_up(
                 board_service.log_change(
                     db, ancestor, BoardChangeType.UPDATED, source, proposal_id, actor,
                     old_description=old_description, new_description=ancestor.description,
-                    old_color=old_color, new_color=ancestor.color.value,
+                    old_color=old_color, new_color=ancestor.color.value, note=data.get("change_summary"),
                 )
             )
             change_note = f"Изменение в «{ancestor.title}»: {ancestor.description}"

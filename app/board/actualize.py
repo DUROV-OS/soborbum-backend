@@ -78,7 +78,8 @@ def actualize(db: Session, root: BoardNode, actor: User) -> list[BoardNodeChange
             board_service.log_change(
                 db, node, BoardChangeType.UPDATED, BoardChangeSource.ACTUALIZE, None, actor,
                 old_description=old_description, new_description=node.description,
-                old_color=old_color, new_color=node.color.value, note="Актуализация по операционным данным",
+                old_color=old_color, new_color=node.color.value,
+                note=update.get("change_summary") or "Актуализация по операционным данным",
             )
         )
 
