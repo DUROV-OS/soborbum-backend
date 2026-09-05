@@ -73,5 +73,7 @@ class ProductionOut(BaseModel):
 
     id: int
     cycle_id: int
+    house_index: int
+    name: str
     created_at: datetime
     modules: list[ModuleOut] = []

@@ -22,5 +22,16 @@ class Cycle(Base):
     )
 
     client: Mapped["Client"] = relationship(back_populates="cycle", uselist=False)  # noqa: F821
-    production: Mapped["Production"] = relationship(back_populates="cycle", uselist=False)  # noqa: F821
+    # One цикл can now hold several дома in production (множественный заказ) —
+    # one Production project per дом, ordered by house_index.
+    productions: Mapped[list["Production"]] = relationship(  # noqa: F821
+        back_populates="cycle",
+        cascade="all, delete-orphan",
+        order_by="Production.house_index",
+    )
     installation: Mapped["Installation"] = relationship(back_populates="cycle", uselist=False)  # noqa: F821
+
+    @property
+    def production(self) -> "Production | None":  # noqa: F821
+        """Backwards-compatible accessor for the first (or only) дом's project."""
+        return self.productions[0] if self.productions else None
